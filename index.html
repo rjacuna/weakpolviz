@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Polarized Relations · weakpolviz</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+</head>
+<body>
+<div id="bar">
+  <b>Polarized Relations</b>
+  <label class="small" id="hlbl">h =</label>
+  <input id="vec" value="1,2,2,1"/>
+  <span class="transport">
+    <button id="prev" title="previous step">⏮</button>
+    <button class="primary" id="playpause" title="play / pause">▶</button>
+    <button id="next" title="next step">⏭</button>
+    <button id="replay" title="restart">↺</button>
+  </span>
+  <span id="vizbtns"></span>
+  <button id="matrixbtn" title="draw every diamond as its upright weight matrix hᵖ𐞥, without the box">matrix</button>
+  <button id="decompbtn" title="decomposition panel — ◇ = Σ P_w(−a) for the hovered node">decomp</button>
+  <span id="rspacer"></span>
+  <span id="weakctrls" class="explode">
+    <label class="small" id="klbl">k =</label><select id="weakk" title="black-box level"></select>
+    <label class="small">∘</label><label class="pill" title="R∘ (circ) subgraph — pure outside B_{k-1}"><input type="checkbox" id="weakcirc"><i></i></label>
+  </span>
+  <button id="weakbtn" title="weak polarized relations (quotient mod the black box)">weak</button>
+  <button id="primbtn" title="primitive cohomology: show each node as a matrix of its primitive Hodge numbers Pᵖ𐞥 = hᵖ𐞥 − hᵖ⁻¹𐞥⁻¹">prim</button>
+  <button id="menubtn" title="animation settings">☰</button>
+</div>
+<div id="weakstat"></div>
+<div id="menu">
+  <div class="row"><span class="small">graph layout</span><select id="graphlayout" title="layout for graph views (not poset)"><option value="force">force-directed</option><option value="layered" selected>layered (tree level)</option><option value="radial">radial</option></select></div>
+  <div class="row"><span class="small">speed</span><input id="speed" type="range" min="0.3" max="3" step="0.1" value="1" style="width:120px"></div>
+  <div class="row"><span class="small">autoplay on new data</span><label class="pill"><input type="checkbox" id="tgl-autoplay"><i></i></label></div>
+  <div class="row"><span class="small">auto&nbsp;→&nbsp;graph at end</span><label class="pill"><input type="checkbox" id="tgl-graph"><i></i></label></div>
+  <div class="row"><span class="small">auto&nbsp;→&nbsp;poset at end</span><label class="pill"><input type="checkbox" id="tgl-poset"><i></i></label></div>
+</div>
+<div id="warn"></div>
+<div id="err"></div>
+<canvas id="stage"></canvas>
+<div id="primpanel"><div id="pp-title"></div><canvas id="ppcanvas"></canvas></div>
+<div id="hint"><button id="hinthide" title="hide">&#8599;</button><div id="hinttext">Each vertex is an admissible diamond. Each leaf is a degeneration, then pivots a irreducible <b>sl₂×sl₂</b> representation + it's conjugate (if it has one) onto its limit (in the sense of lie theory). We call these objects <b>piles</b>, because analogously to sand piles they populate adjacent cells as soon as the pile has enough sand. They differ from sandpiles in that the possible ways to &ldquo;fall&rdquo; is not unique, and in fact all paths are taken (all the ways to decompose a diamond into piles). Drag / wheel to navigate; click nodes in graph view.</div></div>
+<button id="hintshow" title="show explanation">?</button>
+<div id="info"></div>
+
+<script src="js/model.js"></script>
+<script src="js/render.js"></script>
+<script src="js/weak.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
