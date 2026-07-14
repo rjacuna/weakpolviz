@@ -86,7 +86,7 @@ function stepGraphLayout(){ if(graphLayout==='force'){ forceStep(); return; }   
 let playing=false, autoplay=false, done=0, revealT=0, curReveal=-1, revealOrder=[];
 function fitZoom(r){ const md=Math.min(cv.width,cv.height); return clamp(1.15*md/(r+0.7), 16, 240); }
 function run(hvec){ autoFrame=true; curVec=hvec; _hasseFor=null;
-  try{ G=computeGraph(hvec); }catch(e){ showErr('compute failed: '+e); return; }
+  try{ G=cachedComputeGraph(hvec); }catch(e){ showErr('compute failed: '+e); return; }
   BASIS=G.basis; selected=null; document.getElementById('info').style.display='none'; hideWarn();
   buildTree(); buildGraph();
   revealOrder=[]; for(const puid of parentsOrder){ const p=byUid[puid];
@@ -481,6 +481,42 @@ function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getE
   else if(viz==='graph'){ mk('to tree',toTree); mk('to poset',()=>collapseTo('poset'),'toposet'); }
   else { mk('to tree',toTree); mk('to graph',()=>collapseTo('graph')); } }
 
+/*=================== compute cache: worker + IndexedDB + progress ===================*/
+const AV=(()=>{ const s=[...document.scripts].find(x=>/app\.js/.test(x.src||'')); return s?((new URL(s.src)).searchParams.get('v')||'0'):'0'; })();   // this build's ?v=… (for the worker + its model.js import)
+const MODEL_V=1;                          // bump ONLY when computeGraph's output changes → invalidates persisted graphs
+const SAFETY_CAP=120000;                  // abort a runaway computation past this many diamonds (protects the tab)
+const graphCache=new Map();               // gKey -> G, in-memory for this session
+function gKey(hvec){ return MODEL_V+'|'+hvec.join(','); }
+let _db=null;                             // IndexedDB: persist computed graphs across reloads
+function idbOpen(){ return _db?Promise.resolve(_db):new Promise((res,rej)=>{ let r; try{ r=indexedDB.open('weakpolviz',1);}catch(e){return rej(e);}
+  r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains('graphs')) r.result.createObjectStore('graphs'); };
+  r.onsuccess=()=>{ _db=r.result; res(_db); }; r.onerror=()=>rej(r.error); }); }
+function idbGet(key){ return idbOpen().then(db=>new Promise((res,rej)=>{ const q=db.transaction('graphs').objectStore('graphs').get(key); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); })); }
+function idbPut(key,val){ return idbOpen().then(db=>new Promise((res,rej)=>{ const q=db.transaction('graphs','readwrite').objectStore('graphs').put(val,key); q.onsuccess=()=>res(); q.onerror=()=>rej(q.error); })); }
+function cachedComputeGraph(hvec){ const k=gKey(hvec); let G=graphCache.get(k); if(!G){ G=computeGraph(hvec); graphCache.set(k,G); } return G; }   // sync fallback; big graphs are pre-populated by ensureGraph()
+const progEl=document.getElementById('progress'), progTxt=document.getElementById('progtxt');
+let progCancel=null;
+function showProgress(hvec){ if(progEl){ progTxt.textContent='computing '+hvec.join(',')+' …'; progEl.classList.add('shown'); } }
+function updateProgress(n){ if(progTxt) progTxt.textContent=n.toLocaleString()+' diamonds …'; }
+function hideProgress(){ if(progEl) progEl.classList.remove('shown'); progCancel=null; }
+let curWorker=null;                       // ensure the graph for hvec is cached; compute in a worker (with progress) on a miss. resolves true when ready, false if cancelled/failed
+function ensureGraph(hvec){ const k=gKey(hvec);
+  if(graphCache.has(k)) return Promise.resolve(true);
+  if(hvec.length-1<=6 && Math.max(...hvec)<=9){ try{ graphCache.set(k,computeGraph(hvec)); }catch(e){ showErr('compute failed: '+e); return Promise.resolve(false); } return Promise.resolve(true); }   // within the old in-browser limit ⇒ instant synchronous compute (no worker, no progress flash)
+  return idbGet(k).catch(()=>null).then(stored=>{ if(stored){ graphCache.set(k,stored); return true; }
+    return new Promise(resolve=>{
+      let w; try{ w=new Worker('js/gwork.js?v='+AV); }catch(e){ try{ graphCache.set(k,computeGraph(hvec,null,SAFETY_CAP)); resolve(true);}catch(err){ showErr(''+err); resolve(false);} return; }
+      curWorker=w; showProgress(hvec);
+      w.onmessage=ev=>{ const d=ev.data;
+        if(d.t==='p') updateProgress(d.n);
+        else if(d.t==='ok'){ graphCache.set(k,d.G); idbPut(k,d.G).catch(()=>{}); w.terminate(); curWorker=null; hideProgress(); resolve(true); }
+        else { w.terminate(); curWorker=null; hideProgress(); showErr(d.cap?('too large — aborted past '+d.n.toLocaleString()+' diamonds'):('compute failed: '+d.m)); resolve(false); } };
+      w.onerror=()=>{ w.terminate(); curWorker=null; hideProgress(); showErr('compute failed'); resolve(false); };
+      progCancel=()=>{ w.terminate(); curWorker=null; hideProgress(); resolve(false); };
+      w.postMessage({hvec, cap:SAFETY_CAP});
+    }); }); }
+document.getElementById('progcancel').onclick=()=>{ if(progCancel) progCancel(); };
+
 /*=================== validation + warning ===================*/
 const errEl=document.getElementById('err'), warnEl=document.getElementById('warn');
 function showErr(msg){ errEl.textContent=msg; errEl.style.display='block'; }
@@ -493,9 +529,10 @@ function parseVec(str){ const a=str.split(',').map(s=>s.trim()).filter(s=>s.leng
   if(a.some(x=>!Number.isInteger(x)||x<0)) return {err:'entries must be non-negative integers'};
   if(a.length<2) return {err:'need at least two entries'};
   const r=a.length-1; for(let i=0;i<=r;i++) if(a[i]!==a[r-i]) return {err:'not a Hodge vector: must be symmetric (hₚ = h_{r−p})'};
-  if(Math.max(...a)>9 || r>6) return {err:'too large to compute in-browser (keep entries ≤ 9, weight ≤ 6)'};
+  if(r>24) return {err:'weight too large (keep it ≤ 24)'};   // sanity guard; heavier-but-feasible h compute with a progress bar + are cached
   return {vec:a}; }
-function tryRun(str){ const p=parseVec(str); if(p.err){ showErr(p.err); return; } clearErr(); run(p.vec); }
+function tryRun(str){ const p=parseVec(str); if(p.err){ showErr(p.err); return; } clearErr();   // big graphs compute in a worker (progress bar) then cache; cached/small ones run immediately
+  ensureGraph(p.vec).then(ok=>{ if(ok) run(p.vec); }); }
 
 /*=================== controls ===================*/
 const vecInput=document.getElementById('vec');

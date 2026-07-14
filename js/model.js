@@ -88,19 +88,23 @@ function ambientPoset(n,m){
   const covers=[];
   for(const nd of nodes){ const a=nd.a; for(let j=0;j<n;j++){ if(a[j+1]>=1){ const b=a.slice(); b[j]++; b[j+1]--; covers.push([nd.key, b.join(',')]); } } }   // one coin from box j+1 down to box j = a single ⊑ cover
   return {nodes, covers}; }
-function computeGraph(hvec){
+// onProgress(verticesSoFar, queueRemaining) is called periodically (for the worker's progress bar); capV aborts if the vertex count blows past it (safety against OOM)
+function computeGraph(hvec, onProgress, capV){
   const r=hvec.length-1, n=r, BS=basisOf(n), S=BS.S, T=BS.T;
   const pure=zeros(n); for(let i=0;i<=n;i++) pure[i][i]=hvec[i];   // pure HS = diagonal
   const IV=[];
   const vertices=[], index=new Map();
   const add=M=>{ const k=keyOf(M); if(index.has(k)) return index.get(k);
     const id=vertices.length; index.set(k,id); vertices.push(M); return id; };
-  const root=add(pure), edges=[], moves=[], q=[root];
-  while(q.length){ const a=q.shift(); const before=vertices.length;
+  const root=add(pure), edges=[], moves=[], q=[root]; let steps=0;
+  while(q.length){ const a=q.shift();
     const degs=degenerations(vertices[a],S,T,IV);
     for(const {D,P} of degs.values()){ const wasNew=!index.has(keyOf(D)); const b=add(D);
       if(wasNew) q.push(b);
-      edges.push([a,b]); moves.push(P.map((c,i)=>c>0?[i,c]:null).filter(Boolean)); } }
+      edges.push([a,b]); moves.push(P.map((c,i)=>c>0?[i,c]:null).filter(Boolean)); }
+    if(capV && vertices.length>capV) throw new Error('CAP:'+vertices.length);
+    if(onProgress && ((++steps)&15)===0) onProgress(vertices.length, q.length); }
+  if(onProgress) onProgress(vertices.length, 0);
   return {r,root,vertices:vertices.map(M=>M.map(row=>row.slice())),
           primVertices:vertices.map(primitivePart),edges,moves,
           basis:S.map((s,i)=>({S:sparse(S[i]),T:sparse(T[i]),conj:BS.conj[i],

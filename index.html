@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Polarized Relations · weakpolviz</title>
-<link rel="stylesheet" href="css/style.css?v=30">
+<link rel="stylesheet" href="css/style.css?v=31">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 </head>
@@ -46,15 +46,16 @@
 </div>
 <div id="warn"></div>
 <div id="err"></div>
+<div id="progress"><div id="progbar"></div><div id="progrow"><span id="progtxt">computing …</span><button id="progcancel" title="cancel">✕</button></div></div>
 <canvas id="stage"></canvas>
 <div id="primpanel"><div id="pp-title"></div><canvas id="ppcanvas"></canvas></div>
 <div id="hint"><button id="hinthide" title="hide">&#8599;</button><div id="hinttext">Each vertex is an admissible diamond. Each leaf is a degeneration, then pivots a irreducible <b>sl₂×sl₂</b> representation + it's conjugate (if it has one) onto its limit (in the sense of lie theory). We call these objects <b>piles</b>, because analogously to sand piles they populate adjacent cells as soon as the pile has enough sand. They differ from sandpiles in that the possible ways to &ldquo;fall&rdquo; is not unique, and in fact all paths are taken (all the ways to decompose a diamond into piles). Drag / wheel to navigate; click nodes in graph view.</div></div>
 <button id="hintshow" title="show explanation">?</button>
 <div id="info"></div>
 
-<script src="js/model.js?v=30"></script>
-<script src="js/render.js?v=30"></script>
-<script src="js/weak.js?v=30"></script>
-<script src="js/app.js?v=30"></script>
+<script src="js/model.js?v=31"></script>
+<script src="js/render.js?v=31"></script>
+<script src="js/weak.js?v=31"></script>
+<script src="js/app.js?v=31"></script>
 </body>
 </html>

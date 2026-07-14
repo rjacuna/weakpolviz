@@ -11,7 +11,7 @@ function posetHasse(edgeList,n){ const adj={}; edgeList.forEach(([a,b])=>{(adj[a
   const hasse=[]; for(const [a,b] of edgeList){ let cov=false; for(const c of (adj[a]||[])) if(c!==b && reach[c].has(b)){ cov=true; break; } if(!cov) hasse.push([a,b]); }
   return {isPoset:poset, hasse}; }
 function computeWeak(hvec,k){
-  let Gs; try{ Gs=computeGraph(hvec); }catch(e){ return null; } const r=Gs.r; k=Math.max(0,Math.min(r,Math.round(k)));
+  let Gs; try{ Gs=cachedComputeGraph(hvec); }catch(e){ return null; } const r=Gs.r; k=Math.max(0,Math.min(r,Math.round(k)));
   const keys=Gs.vertices.map(m=>wKey(m,r,k)), cls=[], cidx=new Map();
   keys.forEach((kk,vi)=>{ if(!cidx.has(kk)){ cidx.set(kk,cls.length); cls.push({rep:Gs.vertices[vi],reps:[]}); } cls[cidx.get(kk)].reps.push(vi); });
   const vclass=keys.map(kk=>cidx.get(kk));
