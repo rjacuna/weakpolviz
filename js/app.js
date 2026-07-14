@@ -122,6 +122,10 @@ function ensureTreeGrow(){ if(viz!=='tree'){ viz='tree'; renderVizButtons(); } m
 function togglePlay(){ ensureTreeGrow();
   if(done>=revealOrder.length){ done=0; applyState(); }
   playing=!playing; updatePlayIcon(); }
+function replayGrow(){ if(!G){ tryRun(vecInput.value.replace(/\s/g,'')); return; }   // ↺ restarts the tree-grow movie from the root and plays it
+  ensureTreeGrow(); done=0; revealT=0; curReveal=-1; applyState();
+  cam.x=cam.tx=tree[0].tx; cam.y=cam.ty=tree[0].ty; cam.s=cam.ts=fitZoom(G.r);
+  playing=true; updatePlayIcon(); }
 function stepNext(){ ensureTreeGrow(); playing=false;
   if(done<revealOrder.length) done++; applyState(); frameLeaf(); updatePlayIcon(); }
 function stepPrev(){ ensureTreeGrow(); playing=false;
@@ -548,7 +552,7 @@ vecInput.addEventListener('change',()=>{ if(curVec.join(',')!==vecInput.value.re
 document.getElementById('prev').onclick=stepPrev;
 document.getElementById('playpause').onclick=togglePlay;
 document.getElementById('next').onclick=stepNext;
-document.getElementById('replay').onclick=()=>tryRun(vecInput.value.replace(/\s/g,''));
+document.getElementById('replay').onclick=replayGrow;
 const menu=document.getElementById('menu'), menubtn=document.getElementById('menubtn');
 menubtn.onclick=()=>{ menu.style.display = menu.style.display==='block'?'none':'block'; };
 document.getElementById('speed').oninput=e=>{ speed=+e.target.value; };
