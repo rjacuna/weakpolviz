@@ -233,20 +233,25 @@ function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
 // Overlays the full poset 𝒜^{r-2k}(h^k) on the weak-circ graph: realized classes = diamonds (F^k ring highlit),
 // missing profiles = dashed ghosts, missing ⊑-covers = red. Maximal ⇔ no ghosts, saturated ⇔ no red.
 let abMode=null, abFramePending=false, abAnim=0;                                    // null | 'a' | 'A' ; abAnim 0→1 collapses every diamond onto its A-vector
-let abPos=new Map(), abHover=null, abHoverT=0;                                      // overlay vertex positions (for hit-testing) + hovered vertex key + hover animation
+let abPos=new Map(), abHover=null, abHoverT=0, abEox=0;                              // overlay vertex positions (for hit-testing) + hovered vertex key + hover animation + collapse box offset
 function movingVec(rep,r,k){ const C=rep.slice().reverse(); const a=[]; for(let q=k;q<=r-k;q++) a.push(C[k][q]); return a; }   // F^k frontier column p=k, q∈[k,r−k]
 function drawFkGreen(cx,cy,U,r,k){                                                  // green box around the moving vector: the LEFT column j=k (a coin here FALLS down the column), rows k..r−k
   const x=cx+(k-r/2)*MW*U, y0=cy+(k-r/2-0.5)*MW*U, hh=(r-2*k+1)*MW*U;
   ctx.save(); ctx.strokeStyle='#3ecf8e'; ctx.lineWidth=2.2*DPR; ctx.strokeRect(x-MW*U/2, y0, MW*U, hh); ctx.restore(); }
-function drawGhostNode(cx,cy,U,r,k,aVec,AVec,et){                                   // missing profile: empty matrix box; a-vector (et=0) crossfades to the A-vector (et=1) down the green column
-  ctx.save(); wBoxPath(cx,cy,(r+2)*0.62*U,(r/2+0.7)*MW*U,1); ctx.setLineDash([4*DPR,3*DPR]); ctx.strokeStyle='rgba(138,160,191,0.5)'; ctx.lineWidth=1.4*DPR; ctx.stroke(); ctx.restore();
+function drawGhostNode(cx,cy,U,r,k,aVec,AVec,et){                                   // missing profile: dashed box that (like the realized ones) collapses onto its vector; a-vector (et=0) crossfades to the A-vector (et=1) down the green column
+  const cb=collapseBox(cx,cy,U,r,k,et);
+  ctx.save(); wBoxPath(cb.bcx,cy,(r+2)*0.62*U,cb.hsx,1,cb.hsy); ctx.setLineDash([4*DPR,3*DPR]); ctx.strokeStyle='rgba(138,160,191,0.5)'; ctx.lineWidth=1.4*DPR; ctx.stroke(); ctx.restore();
   const x=cx+(k-r/2)*MW*U;                                                          // reversed order matches the left column of the real matrix (top = high weight)
   for(let i=0;i<aVec.length;i++) wTxt(x, cy+(k+i-r/2)*MW*U, U, aVec[aVec.length-1-i], 1-et, '#cfe0f7');
   if(AVec&&et>0.01) for(let i=0;i<AVec.length;i++) wTxt(x, cy+(k+i-r/2)*MW*U, U, AVec[AVec.length-1-i], et, '#cfe0f7');
   drawFkGreen(cx,cy,U,r,k); }
-// realized node collapsing (et:0→1) from the full weak matrix onto its A-vector: the box outline stays put (edges are unaffected), the interior slides into the green column and fades while the A-vector fades in
+// world→screen half-dims of the collapse box as it morphs (et:0→1) from the full square onto a thin box hugging the A-column
+function collapseBox(cx,cy,U,r,k,et){ const colOff=(k-r/2)*MW*U;
+  return { bcx:cx+et*colOff, hsx:lerp((r/2+0.7),0.65,et)*MW*U, hsy:lerp((r/2+0.7),(r-2*k+1)/2+0.35,et)*MW*U }; }
+// realized node collapsing (et:0→1) from the full weak matrix onto its A-vector: the box shrinks onto the green column (edges follow) as the interior slides in and fades and the A-vector fades in
 function drawCollapseNode(m,cx,cy,U,r,k,et,hvec,AVec){
-  wBoxPath(cx,cy,(r+2)*0.62*U,(r/2+0.7)*MW*U,1); ctx.fillStyle='rgba(211,211,211,0.09)'; ctx.fill();
+  const cb=collapseBox(cx,cy,U,r,k,et);
+  wBoxPath(cb.bcx,cy,(r+2)*0.62*U,cb.hsx,1,cb.hsy); ctx.fillStyle='rgba(211,211,211,0.09)'; ctx.fill();
   ctx.strokeStyle='rgba(211,211,211,0.30)'; ctx.lineWidth=1.1*DPR; ctx.stroke();
   const colX=cx+(k-r/2)*MW*U, fade=1-et;
   if(fade>0.01){ ctx.save(); ctx.globalAlpha*=fade;                                 // inner F^k / black-box frames fade out as the interior collapses
@@ -293,9 +298,11 @@ function drawAmbientOverlay(){ if(!WG){ drawWeakMain(); return; }
     const mg=(r+2)*MW*1.4; a-=mg;c+=mg;b-=mg;d+=mg; const w=(c-a)||1,h=(d-b)||1, TOP=54*DPR;   // reserve a top band so the #abstat legend never covers the top vertex
     cam.ts=cam.s=clamp(Math.min(cv.width/w,(cv.height-TOP)/h)*0.9,8,110); cam.tx=cam.x=(a+c)/2; cam.ty=cam.y=(b+d)/2 - (TOP/2)/cam.s; autoFrame=false; }
   const Sw=boxHalfW(r), Rsc=Sw*cam.s;
-  const obs=[]; for(const p of pos.values()){ const [sx,sy]=toScreen(p.x,p.y); obs.push({x:sx,y:sy}); }   // every node centre — edges bow to route around them
-  const arrow=(pf,pt,col,dash,lw,seed)=>{ if(!pf||!pt)return; const dx=pt.x-pf.x, dy=pt.y-pf.y, fr=edgeFsq(dx,dy,Sw);
-    const [x1,y1]=toScreen(pf.x+dx*fr,pf.y+dy*fr), [x2,y2]=toScreen(pt.x-dx*fr,pt.y-dy*fr);
+  const eox=et*(k-r/2)*MW*0.42, ehw=lerp(Sw,0.65*MW*0.42,et), ehh=lerp(Sw,((r-2*k+1)/2+0.35)*MW*0.42,et); abEox=eox;   // edges follow the collapsing box: shift toward the A-column + exit a thin rectangle
+  const obs=[]; for(const p of pos.values()){ const [sx,sy]=toScreen(p.x+eox,p.y); obs.push({x:sx,y:sy}); }   // node/box centres — edges bow to route around them
+  const arrow=(pf,pt,col,dash,lw,seed)=>{ if(!pf||!pt)return; const dx=pt.x-pf.x, dy=pt.y-pf.y, adx=Math.abs(dx)||1e-6, ady=Math.abs(dy)||1e-6;
+    const fr=lerp(edgeFsq(dx,dy,Sw), Math.min(0.47,ehw/adx,ehh/ady), et);
+    const [x1,y1]=toScreen(pf.x+eox+dx*fr,pf.y+dy*fr), [x2,y2]=toScreen(pt.x+eox-dx*fr,pt.y-dy*fr);
     drawArrowCurved(x1,y1,x2,y2,obs,Rsc,{ color:col, dash:dash, width:lw, headColor:col, seed:seed||0 }); };
   // EDGES: the full ⊑ order (transitive closure) = a genuine poset (a⊑b, b⊑d ⇒ a⊑d present). TWO styles only: realized (R_k^∘) = solid blue, missing = dashed red. On hover, non-incident edges fade and incident ones brighten.
   const hv=abHover!=null && pos.has(abHover), T=abHoverT, rel=[];
@@ -430,8 +437,8 @@ function hitNode(cx,cy){ const [wx,wy]=toWorldXY(cx,cy); let best=null,bd=1e9;
 function weakHitNode(cx,cy){ if(!WG||!WN.length)return -1; const [wx,wy]=toWorldXY(cx,cy); let best=-1,bd=1e9;
   for(let i=0;i<WN.length;i++){ if((WN[i].expl||0)>0.5)continue; const d=Math.hypot(WN[i].x-wx,WN[i].y-wy); if(d<bd){bd=d;best=i;} }
   return bd<(WG.r/2+1.1)*MW? best:-1; }
-function abHitNode(cx,cy){ if(!WG||!abPos.size)return null; const [wx,wy]=toWorldXY(cx,cy); let best=null,bd=1e9;   // hit-test the a/𝒜 overlay's own vertex positions
-  for(const [key,p] of abPos){ const d=Math.hypot(p.x-wx,p.y-wy); if(d<bd){bd=d;best=key;} }
+function abHitNode(cx,cy){ if(!WG||!abPos.size)return null; const [wx,wy]=toWorldXY(cx,cy); let best=null,bd=1e9;   // hit-test the a/𝒜 overlay's own vertex positions (+ collapse offset)
+  for(const [key,p] of abPos){ const d=Math.hypot(p.x+abEox-wx,p.y-wy); if(d<bd){bd=d;best=key;} }
   return bd<(WG.r/2+1.1)*MW? best:null; }
 function treeHitNode(cx,cy){ if(!G)return -1; const [wx,wy]=toWorldXY(cx,cy); let best=-1,bd=1e9;
   for(const n of tree){ if(!n.born)continue; const d=Math.hypot(n.x-wx,n.y-wy); if(d<bd){bd=d;best=n.uid;} }

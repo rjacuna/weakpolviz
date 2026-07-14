@@ -66,9 +66,9 @@ function frameWeak(){ if(!WN.length)return; let a=1e9,b=1e9,c=-1e9,d=-1e9;
   cam.tx=(a+c)/2; cam.ty=(b+d)/2; cam.ts=clamp(Math.min(cv.width/w,cv.height/h)*0.9,8,150); }
 function wTxt(x,y,U,v,alpha,col){ if(alpha<=0.02)return; ctx.save(); ctx.globalAlpha=ctx.globalAlpha*alpha; ctx.fillStyle=col;
   ctx.font='700 '+Math.max(9,(U*0.5)|0)+'px ui-sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(v),x,y); ctx.restore(); }
-function wBoxPath(cx,cy,hd,hs,t){ ctx.beginPath(); const N=28;                     // L1 diamond (t=0) morphs to L∞ square (t=1)
-  for(let a=0;a<=N;a++){ const th=a/N*6.2831853, c=Math.cos(th), s=Math.sin(th);
-    const rD=hd/((Math.abs(c)+Math.abs(s))||1), rS=hs/((Math.max(Math.abs(c),Math.abs(s)))||1), rr=lerp(rD,rS,t);
+function wBoxPath(cx,cy,hd,hs,t,hsy){ hsy=hsy==null?hs:hsy; ctx.beginPath(); const N=28;   // L1 diamond (t=0) morphs to L∞ box (t=1); hsy!=hs ⇒ a rectangle (half-width hs, half-height hsy)
+  for(let a=0;a<=N;a++){ const th=a/N*6.2831853, c=Math.cos(th), s=Math.sin(th), ac=Math.abs(c)||1e-9, as=Math.abs(s)||1e-9;
+    const rD=hd/((ac+as)||1), rS=Math.min(hs/ac, hsy/as), rr=lerp(rD,rS,t);
     const x=cx+c*rr, y=cy+s*rr; if(a===0)ctx.moveTo(x,y);else ctx.lineTo(x,y); } ctx.closePath(); }
 function drawMatrixBox(m,cx,cy,U,r,k,t,hi,hvec){   // diamond (t=0) morphs to upright matrix box (t=1); F^k box + h' diagonal
   wBoxPath(cx,cy,(r+2)*0.62*U,(r/2+0.7)*MW*U,t); ctx.fillStyle='rgba(211,211,211,0.09)'; ctx.fill();
