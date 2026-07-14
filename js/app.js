@@ -235,16 +235,16 @@ function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
 let abMode=null, abFramePending=false, abAnim=0;                                    // null | 'a' | 'A' ; abAnim 0→1 collapses every diamond onto its A-vector
 let abPos=new Map(), abHover=null, abHoverT=0, abEox=0;                              // overlay vertex positions (for hit-testing) + hovered vertex key + hover animation + collapse box offset
 function movingVec(rep,r,k){ const C=rep.slice().reverse(); const a=[]; for(let q=k;q<=r-k;q++) a.push(C[k][q]); return a; }   // F^k frontier column p=k, q∈[k,r−k]
-function drawFkGreen(cx,cy,U,r,k){                                                  // green box around the moving vector: the LEFT column j=k (a coin here FALLS down the column), rows k..r−k
+function drawFkGreen(cx,cy,U,r,k,col){                                              // box around the moving vector: the LEFT column j=k (a coin here FALLS down the column), rows k..r−k — green for realized, red for ghosts
   const x=cx+(k-r/2)*MW*U, y0=cy+(k-r/2-0.5)*MW*U, hh=(r-2*k+1)*MW*U;
-  ctx.save(); ctx.strokeStyle='#3ecf8e'; ctx.lineWidth=2.2*DPR; ctx.strokeRect(x-MW*U/2, y0, MW*U, hh); ctx.restore(); }
+  ctx.save(); ctx.strokeStyle=col||'#3ecf8e'; ctx.lineWidth=2.2*DPR; ctx.strokeRect(x-MW*U/2, y0, MW*U, hh); ctx.restore(); }
 function drawGhostNode(cx,cy,U,r,k,aVec,AVec,et){                                   // missing profile: dashed box that (like the realized ones) collapses onto its vector; a-vector (et=0) crossfades to the A-vector (et=1) down the green column
   const cb=collapseBox(cx,cy,U,r,k,et);
   ctx.save(); wBoxPath(cb.bcx,cy,(r+2)*0.62*U,cb.hsx,1,cb.hsy); ctx.setLineDash([4*DPR,3*DPR]); ctx.strokeStyle='rgba(138,160,191,0.5)'; ctx.lineWidth=1.4*DPR; ctx.stroke(); ctx.restore();
   const x=cx+(k-r/2)*MW*U;                                                          // reversed order matches the left column of the real matrix (top = high weight)
   for(let i=0;i<aVec.length;i++) wTxt(x, cy+(k+i-r/2)*MW*U, U, aVec[aVec.length-1-i], 1-et, '#cfe0f7');
   if(AVec&&et>0.01) for(let i=0;i<AVec.length;i++) wTxt(x, cy+(k+i-r/2)*MW*U, U, AVec[AVec.length-1-i], et, '#cfe0f7');
-  drawFkGreen(cx,cy,U,r,k); }
+  drawFkGreen(cx,cy,U,r,k,'#e85656'); }                                             // ghost: red border on the vector
 // world→screen half-dims of the collapse box as it morphs (et:0→1) from the full square onto a thin box hugging the A-column
 function collapseBox(cx,cy,U,r,k,et){ const colOff=(k-r/2)*MW*U;
   return { bcx:cx+et*colOff, hsx:lerp((r/2+0.7),0.65,et)*MW*U, hsy:lerp((r/2+0.7),(r-2*k+1)/2+0.35,et)*MW*U }; }
