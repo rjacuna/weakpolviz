@@ -5,7 +5,7 @@ let collapseT=0;
 let viz='tree', jitterOn=true, autoGraph=false, autoPoset=false, collapseTarget='graph', graphLayout='layered';
 let _hasse=null, _hasseFor=null, curVec=[1,2,2,1], expandT=0, primMode=false;
 let matrixMode=false, decompMode=false;                                          // hamburger toggles: upright h-matrix (no box); KPR decomposition panel (graph/poset)
-function matrixNodesActive(){ return !weakMode && !primMode && (matrixMode || decompMode); }   // render pol nodes as the weak matrix, no box (decomp implies matrix)
+function matrixNodesActive(){ return matrixMode && !weakMode; }   // matrix = a pure SHAPE toggle (diamond↔matrix), independent of prim (which chooses the numbers) and decomp
 function focusZoom(r){ return clamp(300/(r+1),44,120); }
 function isPoset(){ const E=new Set(G.edges.map(e=>e[0]+'>'+e[1])); const adj={};
   G.edges.forEach(e=>{(adj[e[0]]=adj[e[0]]||[]).push(e[1]);});
@@ -160,10 +160,11 @@ function frame(now){ const dt=Math.min(40,now-(frame._p||now)); frame._p=now;
   else if(mode==='reflow') stepReflow(dt);
   else if(viz==='graph'){ stepGraphLayout(); if(autoFrame) frameGraph(); }
   if(viz==='tree' || mode==='collapse') drawTree(); else drawGraph();
-  if(ppShown){ const fv = (viz==='tree')                                          // focus: hovered node, else the first leaf
-      ? ((hoverTreeUid>=0 && byUid[hoverTreeUid]) ? byUid[hoverTreeUid].vid : firstLeafVid())
-      : (hoverVid>=0 ? hoverVid : firstLeafVid());
-    if(fv!==primPanelVid){ primPanelVid=fv; updatePrimPanel(fv); }
+  if(ppShown){                                                                    // focus is STICKY: it changes only when a new node is hovered, then holds
+    if(viz==='tree'){ if(hoverTreeUid>=0 && byUid[hoverTreeUid]) primStickyVid=byUid[hoverTreeUid].vid; }
+    else if(hoverVid>=0) primStickyVid=hoverVid;
+    if(primStickyVid<0) primStickyVid=firstLeafVid();
+    if(primStickyVid!==primPanelVid){ primPanelVid=primStickyVid; updatePrimPanel(primStickyVid); }
     drawPrimGrid(); }
   requestAnimationFrame(frame); }
 function drawTree(){ if(!G)return; const U=cam.s*0.42;
@@ -197,26 +198,23 @@ function drawTree(){ if(!G)return; const U=cam.s*0.42;
       else { n.bt=(n.bt||0)+(1-(n.bt||0))*0.16;                                   // static equivalence-class matrix-box
         drawMatrixBox(G.vertices[n.vid],sx,sy,U*sc,G.r,wk_k, easeIO(clamp(n.bt,0,1)), (n.uid===hoverTreeUid?'#6ea8ff':null), curVec); }
       ctx.restore(); }
-    else if(primMode){                                                             // primitive cohomology: plain matrix, no boxes
-      if(n.uid===treeHoverPileUid && n.hpile){                                      // hover replays the pol-rel pivot in the matrix frame (k=r ⇒ no box)
-        const sp=n.pile, sm=n.mt; n.pile=n.hpile; n.mt=Math.min(treeHoverMt,1); drawMorphMatrix(n,sx,sy,U,G.r,G.r); n.pile=sp; n.mt=sm; }
-      else drawMatrixPlain(G.primVertices[n.vid],sx,sy,U,G.r,(n.uid===hoverTreeUid?'#6ea8ff':null)); }
-    else if(mtx){                                                                  // matrix view: animate the WHOLE thing (grow / fly / hover) in the matrix frame
-      if(n.state==='seesaw' && n.pile){ drawMorphMatrix(n,sx,sy,U,G.r,G.r); }        // pivot falls as a matrix, not a diamond
-      else if(n.state==='fly'){ drawMatrixPlain(G.vertices[byUid[n.parent].vid],sx,sy,U,G.r,null); }
-      else if(n.uid===treeHoverPileUid && n.hpile){
-        const sp=n.pile, sm=n.mt; n.pile=n.hpile; n.mt=Math.min(treeHoverMt,1); drawMorphMatrix(n,sx,sy,U,G.r,G.r); n.pile=sp; n.mt=sm; }
-      else drawMatrixPlain(G.vertices[n.vid],sx,sy,U,G.r,(n.uid===hoverTreeUid?'#6ea8ff':null)); }
-    else if(n.state==='seesaw' && n.pile){ drawMorph(n,sx,sy,U); }
-    else if(n.state==='fly'){ drawStatic(G.vertices[byUid[n.parent].vid],G.r,sx,sy,U,{}); }
-    else if(n.uid===treeHoverPileUid && n.hpile){                                   // hover replays the diamond pile-fall
-      const sp=n.pile, sm=n.mt; n.pile=n.hpile; n.mt=Math.min(treeHoverMt,1); drawMorph(n,sx,sy,U); n.pile=sp; n.mt=sm; }
-    else { const active=(mode==='grow' && curReveal===done && revealOrder[done] && revealOrder[done].parentUid===n.uid);
-      drawStatic(G.vertices[n.vid],G.r,sx,sy,U,{sel:active,selColor:'#e879f9'}); } } }
+    else {                                                                         // pol / pol+prim: prim chooses the NUMBERS, matrix chooses the SHAPE
+      const num = primMode ? G.primVertices[n.vid] : G.vertices[n.vid];
+      if(mtx){                                                                     // matrix shape — animate grow / fly / hover in the matrix frame
+        if(n.state==='seesaw' && n.pile) drawMorphMatrix(n,sx,sy,U,G.r,G.r);
+        else if(n.state==='fly') drawMatrixPlain(G.vertices[byUid[n.parent].vid],sx,sy,U,G.r,null);
+        else if(n.uid===treeHoverPileUid && n.hpile){ const sp=n.pile, sm=n.mt; n.pile=n.hpile; n.mt=Math.min(treeHoverMt,1); drawMorphMatrix(n,sx,sy,U,G.r,G.r); n.pile=sp; n.mt=sm; }
+        else drawMatrixPlain(num,sx,sy,U,G.r,(n.uid===hoverTreeUid?'#6ea8ff':null)); }
+      else {                                                                       // diamond shape
+        if(n.state==='seesaw' && n.pile) drawMorph(n,sx,sy,U);
+        else if(n.state==='fly') drawStatic(G.vertices[byUid[n.parent].vid],G.r,sx,sy,U,{});
+        else if(n.uid===treeHoverPileUid && n.hpile){ const sp=n.pile, sm=n.mt; n.pile=n.hpile; n.mt=Math.min(treeHoverMt,1); drawMorph(n,sx,sy,U); n.pile=sp; n.mt=sm; }
+        else { const active=(mode==='grow' && curReveal===done && revealOrder[done] && revealOrder[done].parentUid===n.uid);
+          drawStatic(num,G.r,sx,sy,U,{sel:active,selColor:'#e879f9'}); } } } } }
 function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
   const EE=(viz==='poset')? getHasse() : G.edges, Hw=(G.r+2)*0.62*0.42, Sw=boxHalfW(G.r), hov=hoverVid>=0;   // connect to diamond (or square, in matrix/prim) boundary
   for(const [a,b] of EE){ const n=gpos[a],m=gpos[b]; if(!n||!m)continue;
-    const dx=m.x-n.x, dy=m.y-n.y, f=(primMode||mtx)?edgeFsq(dx,dy,Sw):edgeF(dx,dy,Hw);
+    const dx=m.x-n.x, dy=m.y-n.y, f=mtx?edgeFsq(dx,dy,Sw):edgeF(dx,dy,Hw);
     const [bx,by]=toScreen(n.x+dx*f,n.y+dy*f),[ex,ey]=toScreen(m.x-dx*f,m.y-dy*f);
     const ang=Math.atan2(ey-by,ex-bx), inc=hov&&(a===hoverVid||b===hoverVid), dim=hov&&!inc;
     ctx.lineWidth=(inc?2.6:1.5)*DPR;
@@ -227,25 +225,32 @@ function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
     ctx.lineTo(ex-Math.cos(ang+0.4)*8*DPR,ey-Math.sin(ang+0.4)*8*DPR); ctx.closePath(); ctx.fill(); }
   for(const n of gnodes){ const [sx,sy]=toScreen(n.x,n.y);
     const hi = (n.vid===primPanelVid && ppShown) ? '#8fb4e6' : (selected===n.vid?'#22c55e':null);   // panel-focused node gets a soft highlight
-    if(primMode) drawMatrixPlain(G.primVertices[n.vid],sx,sy,U,G.r,hi);
-    else if(mtx) drawMatrixPlain(G.vertices[n.vid],sx,sy,U,G.r,hi);
-    else drawStatic(G.vertices[n.vid],G.r,sx,sy,U,{sel:(selected===n.vid||(n.vid===primPanelVid&&ppShown)),selColor:hi||'#22c55e'}); } }
+    const num = primMode ? G.primVertices[n.vid] : G.vertices[n.vid];              // prim = numbers, matrix = shape
+    if(mtx) drawMatrixPlain(num,sx,sy,U,G.r,hi);
+    else drawStatic(num,G.r,sx,sy,U,{sel:(selected===n.vid||(n.vid===primPanelVid&&ppShown)),selColor:hi||'#22c55e'}); } }
 
 /*=================== primitive-decomposition panel (grid of KPR pieces P_w(-a)) ===================*/
 // A pannable "infinite canvas" on the left: rows = primitive weight w, columns = Tate twist a; the cells sum to the focused diamond.
 const ppcv=document.getElementById('ppcanvas'), ppctx=ppcv?ppcv.getContext('2d'):null;
-let ppcam={x:-0.85,y:-1.05,s:150}, primGridData=null, primPanelVid=-1, ppShown=false;
+let ppcam={x:-0.85,y:-1.05,s:150}, primGridData=null, primPanelVid=-1, ppShown=false, ppHeadCv=null, ppHeadR=-1, ppHeadPrim=null, primStickyVid=-1;
 function ppResize(){ if(!ppcv)return; const R=ppcv.getBoundingClientRect(); ppcv.width=Math.max(1,R.width*DPR); ppcv.height=Math.max(1,R.height*DPR); }
-function ppFit(){ if(!ppcv||!primGridData)return; const W=ppcv.width, cols=primGridData.maxCol+1;
-  ppcam.s=clamp((W-200*DPR)/(cols+0.3), 74, 220);                                 // size to the columns (label-readable); tall grids pan vertically
-  ppcam.x=-0.92; ppcam.y=-1.2; }                                                  // rows stack from index 0, so every node frames from the top
+function ppFit(){ if(!ppcv||!primGridData)return; const W=ppcv.width;              // wide Σ column (holds the header) + gap + the a-columns
+  ppcam.s=clamp((W-130*DPR)/(primGridData.maxCol+3.6), 60, 190);                  // size to the columns (label-readable); tall tables pan vertically
+  ppcam.x=-1.15; ppcam.y=-0.9; }                                                  // room on the left for the w= labels; header + first row frame near the top
 function firstLeafVid(){ const n=tree.find(t=>t.born&&t.kids.length===0)||tree[0]; return n?n.vid:0; }
-function updatePrimPanel(vid){ if(!G)return; const grid=primitiveGrid(G.vertices[vid]);
-  let minW=0, maxCol=0; if(grid.rows.length){ minW=Math.min(...grid.rows.map(r=>r.w)); maxCol=Math.max(...grid.rows.map(r=>r.cells.length-1)); }
-  primGridData={vid, r:G.r, grid, src:G.vertices[vid], minW, maxCol};
+function updatePrimPanel(vid){ if(!G)return;
+  const useP = primMode && !weakMode, full = primitiveGrid(G.vertices[vid]);        // pol+prim: decompose P(◇) — only each pile's bottom P_w (a=0) survives, no Lefschetz twists
+  let rows, maxCol;
+  if(useP){ rows = full.rows.map(r=>({w:r.w, cells:[], sum:r.cells[0].mat})); maxCol=0; }   // the a=0 generator P_w per weight; they sum to P(◇)
+  else { rows = full.rows; maxCol = full.rows.length? Math.max(...full.rows.map(r=>r.cells.length-1)) : 0; }
+  primGridData={vid, r:G.r, grid:{r:G.r, rows}, src: useP? G.primVertices[vid] : G.vertices[vid], maxCol, twists:!useP, totalLabel: useP?'P(◇) =':'◇ ='};
   const t=document.getElementById('pp-title'); if(!t)return;
-  t.innerHTML=katexStr('\\Diamond\\;=\\;\\sum_{w=0}^{'+G.r+'}\\;\\sum_{a=0}^{\\,'+G.r+'-w} P_w(-a)')
-    +'<span class="sub">rows = primitive weight <i>w</i> &nbsp;·&nbsp; columns = Tate twist <i>a</i> &nbsp;·&nbsp; each <b>P<sub>w</sub>(&minus;a)</b> is a whole slice on <i>p+q = w+2a</i>; they sum to&nbsp;◇. The shaded <b>a = 0</b> column (the pile bottoms) is exactly <b>P(◇)</b> — the prim view. Hover a node to change ◇; drag / wheel to pan.</span>'; }
+  if(!ppHeadCv || !ppHeadCv.isConnected || ppHeadR!==G.r || ppHeadPrim!==useP){     // (re)build the equation + inline node; canvas redrawn each frame
+    t.innerHTML=katexStr(useP ? 'P(\\Diamond)\\;=\\;\\sum_{w=0}^{'+G.r+'} P_w\\;='
+                              : '\\Diamond\\;=\\;\\sum_{w=0}^{'+G.r+'}\\sum_{a=0}^{\\,'+G.r+'-w} P_w(-a)\\;=')
+      +'<canvas id="pp-head" style="vertical-align:middle;margin-left:8px"></canvas>';
+    ppHeadCv=document.getElementById('pp-head'); ppHeadR=G.r; ppHeadPrim=useP;
+    const HH=44; ppHeadCv.width=HH*DPR; ppHeadCv.height=HH*DPR; ppHeadCv.style.width=HH+'px'; ppHeadCv.style.height=HH+'px'; } }
 function ppLabel(pctx,x,y,w,a){ pctx.textAlign='left'; pctx.textBaseline='alphabetic';   // "P_w(−a)" with a real subscript (a=0 is the untwisted piece P_w)
   const f1=12*DPR, f2=9*DPR; pctx.font='600 '+f1+'px ui-sans-serif'; const pw=pctx.measureText('P').width;
   pctx.font=f2+'px ui-sans-serif'; const sw=''+w, swW=pctx.measureText(sw).width;
@@ -253,28 +258,42 @@ function ppLabel(pctx,x,y,w,a){ pctx.textAlign='left'; pctx.textBaseline='alphab
   pctx.fillStyle='#7f9bc4'; pctx.fillText('P',sx,y);
   pctx.font=f2+'px ui-sans-serif'; pctx.fillText(sw,sx+pw,y+3*DPR);
   pctx.font='600 '+f1+'px ui-sans-serif'; pctx.fillText(tail,sx+pw+swW,y); }
-function drawPrimGrid(){ if(!ppctx)return;
+function ppHeaderSum(pctx,x,y){ pctx.textBaseline='middle'; pctx.fillStyle='#8fb4e6';   // "Σₐ Pw(−a)" centered at (x,y) — the sum column header
+  const f1=11*DPR, f2=8*DPR, seg=[['Σ','a'],[' P','w'],['(−a)','']];
+  let tot=0; for(const[t,sub]of seg){ pctx.font='600 '+f1+'px ui-sans-serif'; tot+=pctx.measureText(t).width; if(sub){ pctx.font=f2+'px ui-sans-serif'; tot+=pctx.measureText(sub).width; } }
+  let sx=x-tot/2; pctx.textAlign='left';
+  for(const[t,sub]of seg){ pctx.font='600 '+f1+'px ui-sans-serif'; pctx.fillText(t,sx,y); sx+=pctx.measureText(t).width; if(sub){ pctx.font=f2+'px ui-sans-serif'; pctx.fillText(sub,sx,y+3*DPR); sx+=pctx.measureText(sub).width; } } }
+function drawPrimGrid(){ if(!ppctx)return;                                          // table: col 0 = ◇ then the strings Σ_a P_w(-a); each weight row splits into P_w(-a)
   const W=ppcv.width, H=ppcv.height; ppctx.setTransform(1,0,0,1,0,0); ppctx.clearRect(0,0,W,H);
   if(!primGridData)return;
-  const r=primGridData.r, s=ppcam.s, U=s*0.40/((r+2)*0.62), OX=122*DPR, OY=96*DPR, diag=(r+2)*0.62*U, RP=1.32;
-  const toS=(cx,cy)=>[(cx-ppcam.x)*s+OX,(cy-ppcam.y)*s+OY], nRows=primGridData.grid.rows.length;
-  if(nRows){ const c0=toS(0,0), cN=toS(0,(nRows-1)*RP), hw=diag+9*DPR;             // tint the a=0 column: the pile bottoms P_w, which sum to P(◇) (the prim view)
-    ppctx.fillStyle='rgba(143,180,230,0.08)'; ppctx.fillRect(c0[0]-hw, c0[1]-diag-9*DPR, hw*2, (cN[1]-c0[1])+2*diag+18*DPR); }
-  const dU=76*DPR*0.42/((r+2)*0.62), dx=62*DPR, dy=50*DPR;                        // source diamond ◇, pinned top-left
-  drawDiamondInto(ppctx,primGridData.src,r,dx,dy,dU);
-  ppctx.fillStyle='#8fb4e6'; ppctx.font='600 '+(14*DPR)+'px ui-sans-serif'; ppctx.textAlign='center'; ppctx.textBaseline='alphabetic';
-  ppctx.fillText('◇ =', dx, dy+(r+2)*0.62*dU+18*DPR);
-  if(nRows){ const cap=toS(0,-1.06); ppctx.fillStyle='#8fb4e6'; ppctx.font='600 '+(11.5*DPR)+'px ui-sans-serif'; ppctx.textAlign='center'; ppctx.textBaseline='alphabetic';
-    ppctx.fillText('= P(◇)', cap[0], cap[1]); }                                    // the a=0 column labelled as the primitive part
-  ppctx.font=(12.5*DPR)+'px ui-sans-serif'; ppctx.textBaseline='middle';         // column headers  a = 0,1,… (above the top row)
-  for(let a=0;a<=primGridData.maxCol;a++){ const p=toS(a,-0.72); if(p[0]<OX-30*DPR||p[0]>W+30*DPR)continue;
-    ppctx.fillStyle= a===0?'#8fb4e6':'#6c86ad'; ppctx.textAlign='center'; ppctx.fillText('a = '+a,p[0],p[1]); }
-  primGridData.grid.rows.forEach((row,ri)=>{                                      // rows stacked by index (top→bottom), labeled with the actual weight w
-    const lp=toS(-0.68,ri*RP); ppctx.fillStyle='#6c86ad'; ppctx.textAlign='right'; ppctx.textBaseline='middle'; ppctx.font=(12.5*DPR)+'px ui-sans-serif';
-    ppctx.fillText('w = '+row.w, lp[0], lp[1]);
-    for(const cell of row.cells){ const p=toS(cell.a,ri*RP);
-      drawDiamondInto(ppctx,cell.mat,r,p[0],p[1],U);
-      ppLabel(ppctx,p[0],p[1]+diag+13*DPR,row.w,cell.a); } }); }
+  const r=primGridData.r, s=ppcam.s, OX=104*DPR, OY=36*DPR, diag=0.40*s, RP=1.4, maxCol=primGridData.maxCol, rows=primGridData.grid.rows, twists=primGridData.twists;
+  const PG=1.45, EQX=0.72;                                                          // PG: extra gap before the a-columns (room for the Σ header); EQX: the "=" between Σ and pieces
+                                                                                    // twists=false on pol+prim: P(◇) is just the pile bottoms, so only the Σ/first column is drawn (no a-expansion)
+  const useMatrix = matrixMode && !weakMode;                                       // panel follows the matrix shape toggle (pol and pol+prim)
+  const piece=(mat,cx,cy,half)=>{ if(useMatrix) drawMatrixInto(ppctx,mat,r,cx,cy,half/((r/2+0.6)*MW)); else drawDiamondInto(ppctx,mat,r,cx,cy,half/((r+2)*0.62)); };
+  const toS=(cx,cy)=>[(cx-ppcam.x)*s+OX,(cy-ppcam.y)*s+OY];
+  if(ppHeadCv){ const hc=ppHeadCv.getContext('2d'), hw=ppHeadCv.width, hh=ppHeadCv.height, half=Math.min(hw,hh)*0.44;   // the inline ◇ in the header equation, redrawn each frame (follows focus + matrix toggle)
+    hc.setTransform(1,0,0,1,0,0); hc.clearRect(0,0,hw,hh);
+    if(useMatrix) drawMatrixInto(hc,primGridData.src,r,hw/2,hh/2,half/((r/2+0.6)*MW)); else drawDiamondInto(hc,primGridData.src,r,hw/2,hh/2,half/((r+2)*0.62)); }
+  if(twists){ { const h=toS(0,-0.72); ppHeaderSum(ppctx,h[0],h[1]); }               // column headers: Σₐ Pw(−a), then a = 0,1,…
+    ppctx.font=(12.5*DPR)+'px ui-sans-serif'; ppctx.textBaseline='middle';
+    for(let a=0;a<=maxCol;a++){ const p=toS(a+PG,-0.72); if(p[0]<OX-40*DPR||p[0]>W+40*DPR)continue; ppctx.fillStyle='#6c86ad'; ppctx.textAlign='center'; ppctx.fillText('a = '+a,p[0],p[1]); } }
+  else { const h=toS(0,-0.72); ppctx.textBaseline='middle'; ppctx.fillStyle='#8fb4e6';   // prim: the first column is P_w (the pile bottoms)
+    const f1=12*DPR, f2=9*DPR; ppctx.font='600 '+f1+'px ui-sans-serif'; const pw=ppctx.measureText('P').width; ppctx.font=f2+'px ui-sans-serif'; const ww=ppctx.measureText('w').width, sx=h[0]-(pw+ww)/2;
+    ppctx.textAlign='left'; ppctx.font='600 '+f1+'px ui-sans-serif'; ppctx.fillText('P',sx,h[1]); ppctx.font=f2+'px ui-sans-serif'; ppctx.fillText('w',sx+pw,h[1]+3*DPR); }
+  rows.forEach((row,ri)=>{ const y=ri*RP;                                          // weight rows (no diamond row):  Σ_a P_w(-a)  =  P_w(0)  P_w(-1)  …
+    const lp=toS(-0.85,y); ppctx.fillStyle='#6c86ad'; ppctx.textAlign='right'; ppctx.textBaseline='middle'; ppctx.font=(12.5*DPR)+'px ui-sans-serif'; ppctx.fillText('w = '+row.w,lp[0],lp[1]);
+    const ps=toS(0,y); piece(row.sum,ps[0],ps[1],diag);
+    if(ri<rows.length-1){ const pv=toS(0,(ri+0.5)*RP); ppctx.fillStyle='#6c86ad'; ppctx.textAlign='center'; ppctx.textBaseline='middle'; ppctx.font=(15*DPR)+'px ui-sans-serif'; ppctx.fillText('+',pv[0],pv[1]); }   // + between the string rows (column 0)
+    if(twists){ const eq=toS(EQX,y); ppctx.fillStyle='#6c86ad'; ppctx.textAlign='center'; ppctx.textBaseline='middle'; ppctx.font=(14*DPR)+'px ui-sans-serif'; ppctx.fillText('=',eq[0],eq[1]);
+      row.cells.forEach((cell,ci)=>{ const p=toS(cell.a+PG,y); piece(cell.mat,p[0],p[1],diag);
+        ppLabel(ppctx,p[0],p[1]+diag+13*DPR,row.w,cell.a);
+        if(ci<row.cells.length-1){ const pl=toS(cell.a+PG+0.5,y); ppctx.fillStyle='#6c86ad'; ppctx.textAlign='center'; ppctx.textBaseline='middle'; ppctx.font=(14*DPR)+'px ui-sans-serif'; ppctx.fillText('+',pl[0],pl[1]); } }); } });   // + between the a-columns
+  { const yL=(rows.length-1)*RP+RP*0.72, yD=(rows.length-1)*RP+RP*1.36;             // straight line closing the table, then the total row  Σ strings = ◇
+    const l0=toS(-0.55,yL), l1=toS(twists?maxCol+PG+0.5:0.55,yL);                   // pol: full width; prim: just the P_w column
+    ppctx.strokeStyle='rgba(143,180,230,0.55)'; ppctx.lineWidth=1.4*DPR; ppctx.beginPath(); ppctx.moveTo(l0[0],l0[1]); ppctx.lineTo(l1[0],l1[1]); ppctx.stroke();
+    const dl=toS(-0.85,yD); ppctx.fillStyle='#8fb4e6'; ppctx.textAlign='right'; ppctx.textBaseline='middle'; ppctx.font='600 '+(15*DPR)+'px ui-sans-serif'; ppctx.fillText(primGridData.totalLabel,dl[0],dl[1]);
+    const dp=toS(0,yD); piece(primGridData.src,dp[0],dp[1],diag); } }
 if(ppcv){ let ppDrag=false, ppLast=[0,0];                                          // pan / zoom — its own camera, independent of the main canvas
   ppcv.addEventListener('pointerdown',e=>{ ppcv.setPointerCapture(e.pointerId); ppDrag=true; ppLast=[e.clientX,e.clientY]; });
   ppcv.addEventListener('pointermove',e=>{ if(!ppDrag)return; ppcam.x-=(e.clientX-ppLast[0])*DPR/ppcam.s; ppcam.y-=(e.clientY-ppLast[1])*DPR/ppcam.s; ppLast=[e.clientX,e.clientY]; });
@@ -342,7 +361,7 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   const now = decompMode && !weakMode;                                                    // KPR decomposition panel: any pol view (tree/graph/poset), with or without prim
   if(now!==ppShown){ ppShown=now; const pp=document.getElementById('primpanel');
     if(pp) pp.classList.toggle('shown',now); document.body.classList.toggle('ppopen',now);
-    if(now && G){ ppResize(); primPanelVid=(hoverVid>=0?hoverVid:firstLeafVid()); updatePrimPanel(primPanelVid); ppFit(); } } }
+    if(now && G){ ppResize(); if(primStickyVid<0) primStickyVid=(hoverVid>=0?hoverVid:firstLeafVid()); primPanelVid=primStickyVid; updatePrimPanel(primStickyVid); ppFit(); } } }
 function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getElementById('vizbtns'); c.innerHTML='';
   const mk=(label,fn,id)=>{ const b=document.createElement('button'); b.textContent=label; b.onclick=fn; if(id)b.id=id; c.appendChild(b); };
   if(weakMode){ if(weakLayout!=='graph') mk('to graph',()=>setWeakLayout('graph'));
@@ -388,8 +407,9 @@ document.getElementById('tgl-poset').onchange=e=>{ autoPoset=e.target.checked; i
 document.getElementById('matrixbtn').onclick=()=>{ matrixMode=!matrixMode; autoFrame=true; updateChrome(); updateHint(); };   // upright h-matrix, no box (pol & pol+prim, all views)
 document.getElementById('decompbtn').onclick=()=>{ decompMode=!decompMode; autoFrame=true; updateChrome(); updateHint();
   if(viz==='tree'&&G&&mode==='idle') frameTree(); };   // reframe the settled tree into the (now narrower / full) canvas
-document.getElementById('primbtn').onclick=()=>{ primMode=!primMode;                 // primitive cohomology (matrix view); disables the play transport, keeps hover-replay
+document.getElementById('primbtn').onclick=()=>{ primMode=!primMode;                 // primitive cohomology; disables the play transport, keeps hover-replay
   if(primMode){ playing=false; updatePlayIcon(); finishTree(); }
+  primPanelVid=-1;                                                                   // force the decomposition panel to recompute (◇ vs P(◇)) for the same focused node
   document.getElementById('primbtn').classList.toggle('active',primMode); autoFrame=true; updateChrome(); updateHint(); };
 const _origRun=run; run=function(v){ _origRun(v); populateWeakK(); if(weakMode) refreshWeak(); };   // keep weak view + k options in sync with h
 
@@ -417,8 +437,8 @@ function updateHint(){ const el=document.getElementById('hinttext'); if(!el)retu
       else s='<b>R<sub>'+weakK+'</sub><sup>&#8728;</sup>(<u>h</u>) &mdash; circ sub-tree.</b>'+core+' The rest explode away; hover to replay a pivot.';
     }
   }
-  if(primMode) s='<b style="color:#8fb4e6">Primitive cohomology.</b> Each node is shown as a matrix of its primitive Hodge numbers P<sup>p,q</sup> = h<sup>p,q</sup> &minus; h<sup>p&minus;1,q&minus;1</sup> (zero above the middle weight). '+s;
-  else if(matrixMode && !weakMode) s='<b style="color:#8fb4e6">Matrix view.</b> Each diamond is drawn as its upright weight matrix h<sup>p,q</sup>, without the box. '+s;
+  if(primMode) s='<b style="color:#8fb4e6">Primitive cohomology.</b> Nodes show their primitive Hodge numbers P<sup>p,q</sup> = h<sup>p,q</sup> &minus; h<sup>p&minus;1,q&minus;1</sup> (zero above the middle weight). '+s;
+  if(matrixMode && !weakMode) s='<b style="color:#8fb4e6">Matrix view.</b> Every node is drawn as its upright weight matrix, without the box. '+s;
   if(decompMode && !weakMode) s='<b style="color:#8fb4e6">KPR decomposition.</b> Hover a node to unpack ◇ = &Sigma;<sub>w,a</sub> P<sub>w</sub>(&minus;a) in the left panel; the shaded a = 0 column is P(◇). '+s;
   el.innerHTML = s + nav; }
 function renderMathLabels(){ const h=document.getElementById('hlbl'), k=document.getElementById('klbl');

@@ -73,10 +73,11 @@ function primitiveGrid(m){
   for(let w=0;w<=r;w++){
     const Pw=[]; for(let p=0;p<=w;p++){ const q=w-p; if(q>=0&&q<=r&&p<=r){ const v=Pc[p][q]; if(v) Pw.push([p,q,v]); } }   // P_w on p+q=w
     if(!Pw.length) continue;
-    const cells=[];
+    const cells=[], sum=Array.from({length:r+1},()=>new Array(r+1).fill(0));
     for(let a=0;a<=r-w;a++){ const Qc=Array.from({length:r+1},()=>new Array(r+1).fill(0));
-      for(const [p,q,v] of Pw) Qc[p+a][q+a]=v; cells.push({a, mat:Qc.slice().reverse()}); }   // twist the whole string up by (a,a)
-    rows.push({w, cells});
+      for(const [p,q,v] of Pw) Qc[p+a][q+a]=v; const mat=Qc.slice().reverse(); cells.push({a, mat});   // twist the whole string up by (a,a)
+      for(let i=0;i<=r;i++)for(let j=0;j<=r;j++) sum[i][j]+=mat[i][j]; }                                // sum = Σ_a P_w(-a), the whole Lefschetz string
+    rows.push({w, cells, sum});
   }
   return {r, rows}; }
 function computeGraph(hvec){

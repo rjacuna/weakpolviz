@@ -9,7 +9,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
 #bar b{color:var(--sand);font-weight:700;letter-spacing:.3px;white-space:nowrap}
 #bar button{white-space:nowrap}
 #bar > button, #bar .transport, #vizbtns, #weakctrls{flex:0 0 auto}   /* keep labels intact; only the explode animation collapses width */
-@media (max-width:1000px){ #bar b{display:none} #hlbl{display:none} }   /* narrow: drop the title / h= label so the button groups still fit */
+@media (max-width:1180px){ #bar b{display:none} #hlbl{display:none} }   /* narrow: drop the title / h= label so the button groups still fit */
 select,input,button{background:var(--panel);color:var(--ink);border:1px solid #2b3a58;
   border-radius:8px;padding:6px 10px;font:inherit}
 button{cursor:pointer}button:hover{border-color:var(--accent)}

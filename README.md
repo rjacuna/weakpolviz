@@ -42,23 +42,23 @@ The four scripts are classic (non-module) and share one global scope; load order
 - **graph** — the relations DAG `R(h)`; layout selectable in the ☰ menu (force / layered / radial).
 - **poset** — the Hasse diagram, when the relation is a poset.
 - **weak** — quotient `R_k(h)` mod the black box `B_k`; `∘` toggles the circ subgraph `R_k^∘`.
-- **prim** — a toggle that draws each node as an upright **matrix** of its primitive (Lefschetz)
-  Hodge numbers `P^{p,q} = h^{p,q} − h^{p-1,q-1}` (zero above the middle weight), reusing the
-  weak view's matrix rendering without the black/relative boxes; applies to the strict
-  tree/graph/poset views. `primitivePart` in `model.js` is a port of `ds.sage`'s `P(M)`.
+## Pol-side toggles (flush-left toolbar buttons)
 
-## Hamburger (☰) toggles
+These are **orthogonal**: `prim` chooses the *numbers*, `matrix` chooses the *shape*, so the
+four combinations (diamond/matrix × full/primitive) all render. All three explode away in weak.
 
-- **matrix view (no box)** — draws every pol diamond as its upright weight matrix `h^{p,q}`
-  (the weak rendering, minus the box) in tree/graph/poset. Global to the pol side.
-- **decomposition panel** — a **graph / poset** feature. It also switches the nodes to the
-  matrix view and opens a pannable panel on the left half unpacking the KPR/Lefschetz sum
-  `◇ = Σ_{w=0}^{r} Σ_{a=0}^{r−w} P_w(−a)` from [KPR, Thm. 5.18] as a grid: one **row per
-  primitive weight `w`**, one **column per Tate twist `a`**. Each `P_w(−a)` is a *whole slice*
-  on `p+q = w+2a` (not a single cell); the cells sum back to the diamond. Hover any node to
-  re-focus. The shaded **`a = 0` column** (the pile bottoms `P_w`) is exactly **`P(◇)`** — the
-  same primitive numbers the prim view shows. `primitiveGrid` in `model.js` builds the grid;
-  the panel + camera live in the `pp*` block of `app.js`.
+- **prim** — show each node's primitive (Lefschetz) Hodge numbers `P^{p,q} = h^{p,q} − h^{p-1,q-1}`
+  (zero above the middle weight) instead of the full `h^{p,q}`. `primitivePart` in `model.js` is a
+  port of `ds.sage`'s `P(M)`. Works in tree/graph/poset.
+- **matrix** — draw every pol node as its upright weight matrix (the weak rendering, minus the box)
+  instead of a diamond; grow/hover animate in the matrix frame. Applies in pol *and* pol+prim.
+- **decomposition panel** — opens a pannable panel on the left half unpacking the KPR/Lefschetz sum
+  `◇ = Σ_{w=0}^{r} Σ_{a=0}^{r−w} P_w(−a)` from [KPR, Thm. 5.18] as a grid: one **row per primitive
+  weight `w`**, one **column per Tate twist `a`**. Each `P_w(−a)` is a *whole slice* on `p+q = w+2a`
+  (not a single cell); the cells sum back to the diamond. Works in every pol view (with or without
+  prim) and does **not** force the matrix shape. Hover any node to re-focus. The shaded **`a = 0`
+  column** (the pile bottoms `P_w`) is exactly **`P(◇)`** — the same primitive numbers `prim` shows.
+  `primitiveGrid` in `model.js` builds the grid; the panel + camera live in the `pp*` block of `app.js`.
 
 ## History
 

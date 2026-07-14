@@ -65,6 +65,20 @@ function drawDiamondInto(pctx,mat,r,cx,cy,U,faint){
   for(let i=0;i<=r;i++)for(let j=0;j<=r;j++){ const v=mat[i][j]; if(v<=0)continue; const b=cellBase(j,r-i,r), x=cx+b[0]*U, y=cy+b[1]*U;
     if(v===1){ pctx.fillStyle='#e9c377'; pctx.beginPath(); pctx.arc(x,y,Math.max(1.2,U*0.13),0,7); pctx.fill(); }
     else { pctx.fillStyle='#f2d38c'; pctx.font='700 '+Math.max(8,(U*0.5)|0)+'px ui-sans-serif'; pctx.textAlign='center'; pctx.textBaseline='middle'; pctx.fillText(String(v),x,y); } } }
+// matrix counterpart of drawDiamondInto: an upright h^{p,q} matrix (no box), centered at (cx,cy) with unit U. Used by the panel when matrix view is on.
+function drawMatrixInto(pctx,mat,r,cx,cy,U,faint){
+  const hw=(r/2+0.6)*MW*U, rad=Math.min(hw*0.45, 6*DPR);
+  pctx.beginPath();
+  pctx.moveTo(cx-hw+rad,cy-hw);
+  pctx.arcTo(cx+hw,cy-hw, cx+hw,cy+hw, rad); pctx.arcTo(cx+hw,cy+hw, cx-hw,cy+hw, rad);
+  pctx.arcTo(cx-hw,cy+hw, cx-hw,cy-hw, rad); pctx.arcTo(cx-hw,cy-hw, cx+hw,cy-hw, rad); pctx.closePath();
+  pctx.fillStyle=faint?'rgba(211,211,211,0.04)':'rgba(211,211,211,0.07)'; pctx.fill();
+  pctx.strokeStyle=faint?'rgba(211,211,211,0.14)':'rgba(211,211,211,0.24)'; pctx.lineWidth=1*DPR; pctx.stroke();
+  pctx.fillStyle='#1a2740';
+  for(let i=0;i<=r;i++)for(let j=0;j<=r;j++){ const x=cx+(j-r/2)*MW*U, y=cy+(i-r/2)*MW*U; pctx.beginPath(); pctx.arc(x,y,Math.max(0.8,U*0.05),0,7); pctx.fill(); }
+  for(let i=0;i<=r;i++)for(let j=0;j<=r;j++){ const v=mat[i][j]; if(v<=0)continue; const x=cx+(j-r/2)*MW*U, y=cy+(i-r/2)*MW*U;
+    if(v===1){ pctx.fillStyle='#e9c377'; pctx.beginPath(); pctx.arc(x,y,Math.max(1.2,U*0.13),0,7); pctx.fill(); }
+    else { pctx.fillStyle='#f2d38c'; pctx.font='700 '+Math.max(8,(U*0.5)|0)+'px ui-sans-serif'; pctx.textAlign='center'; pctx.textBaseline='middle'; pctx.fillText(String(v),x,y); } } }
 
 // an irrep = a set of ∇-rods (grouped by weight v=i-j); each rod is a rigid rod
 // that rotates 90° about its own midpoint (all midpoints share the axis x=x_M).
