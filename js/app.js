@@ -271,9 +271,8 @@ function drawAmbientOverlay(){ if(!WG){ drawWeakMain(); return; }
   abHoverT += ((abHover!=null?1:0)-abHoverT)*0.2;
   const mv=rep=>movingVec(rep,r,k).join(',');
   const repOf=new Map(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) repOf.set(mv(c.rep), c.rep); });   // realized profiles (R_k^∘) → representative matrix
-  const kAdj=new Map(); AP.nodes.forEach(nd=>kAdj.set(nd.key,[]));
-  (WG.keptEdges||[]).forEach(([ci,cj])=>{ const f=mv(WG.classes[ci].rep), t=mv(WG.classes[cj].rep); if(kAdj.has(f)) kAdj.get(f).push(t); });
-  const reach=(f,t)=>{ if(f===t)return true; const seen=new Set([f]),st=[f]; while(st.length){const u=st.pop(); for(const w of (kAdj.get(u)||[])){ if(w===t)return true; if(!seen.has(w)){seen.add(w);st.push(w);} }} return false; };
+  const directE=new Set();   // R_k^∘'s DIRECT degeneration edges (moving-vector pairs). Saturation = every ⊑-comparable pair IS one of these — not merely reachable through others (R_k^∘ need not be transitively closed)
+  (WG.keptEdges||[]).forEach(([ci,cj])=>{ directE.add(mv(WG.classes[ci].rep)+'>'+mv(WG.classes[cj].rep)); });
   const byKey=new Map(); AP.nodes.forEach(nd=>byKey.set(nd.key,nd));
   const leq=(a,d)=>{ const Aa=byKey.get(a).A, Ad=byKey.get(d).A; for(let i=0;i<Aa.length;i++) if(Aa[i]>Ad[i]) return false; return true; };   // 𝒜's order: a ⊑ d ⟺ A_a ≤ A_d componentwise
   const D=(r+2)*MW*1.25;
@@ -304,9 +303,9 @@ function drawAmbientOverlay(){ if(!WG){ drawWeakMain(); return; }
     const fr=lerp(edgeFsq(dx,dy,Sw), Math.min(0.47,ehw/adx,ehh/ady), et);
     const [x1,y1]=toScreen(pf.x+eox+dx*fr,pf.y+dy*fr), [x2,y2]=toScreen(pt.x+eox-dx*fr,pt.y-dy*fr);
     drawArrowCurved(x1,y1,x2,y2,obs,Rsc,{ color:col, dash:dash, width:lw, headColor:col, seed:seed||0 }); };
-  // EDGES: the full ⊑ order (transitive closure) = a genuine poset (a⊑b, b⊑d ⇒ a⊑d present). TWO styles only: realized (R_k^∘) = solid blue, missing = dashed red. On hover, non-incident edges fade and incident ones brighten.
+  // EDGES: draw every ⊑-comparable pair. realized (a DIRECT R_k^∘ edge) = solid blue; missing (comparable but no direct edge — incl. ghost-incident) = dashed red. Saturated ⟺ no red. On hover, non-incident edges fade and incident ones brighten.
   const hv=abHover!=null && pos.has(abHover), T=abHoverT, rel=[];
-  for(const x of AP.nodes) for(const y of AP.nodes){ if(x.key===y.key||!leq(x.key,y.key))continue; rel.push({f:x.key,t:y.key, realized: repOf.has(x.key)&&repOf.has(y.key)&&reach(x.key,y.key)}); }
+  for(const x of AP.nodes) for(const y of AP.nodes){ if(x.key===y.key||!leq(x.key,y.key))continue; rel.push({f:x.key,t:y.key, realized: directE.has(x.key+'>'+y.key)}); }
   const drawRel=e=>{ const inc=hv&&(e.f===abHover||e.t===abHover), base=e.realized?0.72:0.9;
     const a= inc? base+(1-base)*T : base*(1-0.85*T), w=(e.realized?1.4:1.7)+(inc?1.3*T:0);
     arrow(pos.get(e.f),pos.get(e.t), (e.realized?'rgba(96,128,170,':'rgba(232,86,86,')+a+')', e.realized?null:[6*DPR,4*DPR], w, hstr(e.f+'>'+e.t)); };
@@ -322,16 +321,15 @@ function updateABStat(){ const el=document.getElementById('abstat'); if(!el)retu
   const r=WG.r, k=WG.k, n=r-2*k, m=WG.hvec[k], AP=ambientPoset(n,m);
   const mv=rep=>movingVec(rep,r,k).join(',');
   const realized=new Set(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) realized.add(mv(c.rep)); });
-  const kAdj=new Map(); AP.nodes.forEach(nd=>kAdj.set(nd.key,[]));
-  (WG.keptEdges||[]).forEach(([ci,cj])=>{ const f=mv(WG.classes[ci].rep), t=mv(WG.classes[cj].rep); if(kAdj.has(f)) kAdj.get(f).push(t); });
-  const reach=(f,t)=>{ if(f===t)return true; const seen=new Set([f]),st=[f]; while(st.length){const u=st.pop(); for(const w of (kAdj.get(u)||[])){ if(w===t)return true; if(!seen.has(w)){seen.add(w);st.push(w);} }} return false; };
-  let satFailN=0; for(const [f,t] of AP.covers){ if(realized.has(f)&&realized.has(t) && !reach(f,t)) satFailN++; }   // covers MISSING between two realized vertices = saturation failures (red); ghost-incident covers are maximality, not saturation
-  const missV=AP.nodes.filter(nd=>!realized.has(nd.key)).length, maxi=missV===0, sat=maxi&&satFailN===0;
+  const directE=new Set(); (WG.keptEdges||[]).forEach(([ci,cj])=>{ directE.add(mv(WG.classes[ci].rep)+'>'+mv(WG.classes[cj].rep)); });
+  const byK={}; AP.nodes.forEach(nd=>byK[nd.key]=nd);
+  const leq=(a,d)=>{ const Aa=byK[a].A, Ad=byK[d].A; for(let i=0;i<Aa.length;i++) if(Aa[i]>Ad[i]) return false; return true; };
+  let missE=0, pairs=0; for(const x of AP.nodes) for(const y of AP.nodes){ if(x.key!==y.key && leq(x.key,y.key)){ pairs++; if(!directE.has(x.key+'>'+y.key)) missE++; } }   // saturated ⟺ EVERY ⊑-comparable pair is a direct edge (R_k^∘ = ⊑ as relations, not just via transitive closure)
+  const missV=AP.nodes.filter(nd=>!realized.has(nd.key)).length, maxi=missV===0, sat=missE===0;
   const name=katexStr('R_'+k+'^{\\circ}\\ \\subseteq\\ \\mathcal{A}^{'+n+'}('+m+')');
   const maxS=maxi? '<b class="ok">maximal ✓</b>' : 'not maximal — '+missV+' missing <span class="bad">(dashed)</span>';
-  const satS=satFailN>0 ? 'not saturated — '+satFailN+' cover'+(satFailN===1?'':'s')+' <span class="bad">(red)</span>'
-           : maxi ? '<b class="ok">saturated ✓</b>' : 'no missing covers among realized';
-  el.innerHTML=name+' &nbsp;·&nbsp; '+(AP.nodes.length-missV)+'/'+AP.nodes.length+' vertices &nbsp;·&nbsp; '+maxS+' &nbsp;·&nbsp; '+satS;
+  const satS=sat? '<b class="ok">saturated ✓</b>' : 'not saturated — '+missE+' missing edge'+(missE===1?'':'s')+' <span class="bad">(red)</span>';
+  el.innerHTML=name+' &nbsp;·&nbsp; '+(AP.nodes.length-missV)+'/'+AP.nodes.length+' vertices &nbsp;·&nbsp; '+(pairs-missE)+'/'+pairs+' edges &nbsp;·&nbsp; '+maxS+' &nbsp;·&nbsp; '+satS;
   el.style.display='block'; }
 
 /*=================== primitive-decomposition panel (grid of KPR pieces P_w(-a)) ===================*/
