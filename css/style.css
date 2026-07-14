@@ -40,10 +40,11 @@ label.small{color:var(--dim);font-size:12px}
 #rspacer{margin-left:auto}                                          /* flush the weak/prim/menu group to the right */
 #menubtn{font-size:18px;line-height:1;padding:5px 11px}
 /* dynamic toolbar: buttons explode (blow up + vanish) when not needed and the rest flush in */
-#bar .transport, #bar > #primbtn, #bar > #weakbtn, #bar > #matrixbtn, #bar > #decompbtn, #weakctrls{
+#bar .transport, #bar > #primbtn, #bar > #weakbtn, #bar > #matrixbtn, #bar > #decompbtn, #weakctrls, #abctrls{
   transition:transform .34s cubic-bezier(.34,1.6,.6,1), opacity .2s ease, max-width .34s ease,
     margin-left .34s ease, padding .34s ease, border-width .12s ease;
   max-width:160px; overflow:hidden; white-space:nowrap; }
+#abctrls{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
 .explode{ transform:scale(1.75)!important; opacity:0!important; max-width:0!important;
   margin-left:-10px!important; padding-left:0!important; padding-right:0!important; border-width:0!important; pointer-events:none!important; }
 #menu{position:fixed;top:56px;right:12px;width:230px;background:#0d1626f5;border:1px solid #23324e;
@@ -62,7 +63,8 @@ label.small{color:var(--dim);font-size:12px}
   60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
 .shake{animation:shake .42s}
 #weakstat .katex{font-size:1.05em}
-#weakbtn.active,#primbtn.active,#matrixbtn.active,#decompbtn.active{background:#1d3a6b;border-color:#2f5aa0;color:#cfe0f7}
+#weakbtn.active,#primbtn.active,#matrixbtn.active,#decompbtn.active,.abbtn.active{background:#1d3a6b;border-color:#2f5aa0;color:#cfe0f7}
+.abbtn{padding:5px 10px;font-family:ui-monospace,monospace;min-width:26px}
 #weakctrls{display:inline-flex;align-items:center;gap:7px}
 #weakctrls select{padding:5px 6px}
 #weakstat{position:fixed;left:12px;top:62px;background:#0d1626e6;border:1px solid #23324e;border-radius:8px;

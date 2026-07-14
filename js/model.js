@@ -80,6 +80,14 @@ function primitiveGrid(m){
     rows.push({w, cells, sum});
   }
   return {r, rows}; }
+// ambient poset A^n(m): all "coin distributions" a:{0..n}->Z>=0 with Σa = m (= the gr_F^k / F^k moving vectors for R_k^∘, n=r-2k, m=h^k).
+// Returns { nodes:[{a, A, rank, key}], covers:[[fromKey,toKey]] } where A=partial sums, rank=Σ A, and a cover moves one coin down one box (⊑: A1≤A0).
+function ambientPoset(n,m){
+  const as=intVectors(m,n+1);
+  const nodes=as.map(a=>{ const A=[]; let s=0; for(const x of a){ s+=x; A.push(s); } return {a, A, rank:A.reduce((p,q)=>p+q,0), key:a.join(',')}; });
+  const covers=[];
+  for(const nd of nodes){ const a=nd.a; for(let j=0;j<n;j++){ if(a[j+1]>=1){ const b=a.slice(); b[j]++; b[j+1]--; covers.push([nd.key, b.join(',')]); } } }   // one coin from box j+1 down to box j = a single ⊑ cover
+  return {nodes, covers}; }
 function computeGraph(hvec){
   const r=hvec.length-1, n=r, BS=basisOf(n), S=BS.S, T=BS.T;
   const pure=zeros(n); for(let i=0;i<=n;i++) pure[i][i]=hvec[i];   // pure HS = diagonal

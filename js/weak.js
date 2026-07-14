@@ -135,7 +135,7 @@ function stepWeak(dt){ weakT += (weakTgt-weakT)*0.16;
     else { const T=posetTargetsW(); for(let i=0;i<WN.length;i++){ WN[i].x=lerp(WN[i].x,T[i].x,0.14); WN[i].y=lerp(WN[i].y,T[i].y,0.14); WN[i].vx=WN[i].vy=0; } } }   // poset: its own circ-aware layered layout
   if(autoFrame) frameWeak(); }
 function katexStr(s){ return window.katex? window.katex.renderToString(s,{throwOnError:false}) : s; }
-function updateWeakStat(){ const el=document.getElementById('weakstat'); if(!el)return; if(!weakMode||!WG){ el.style.display='none'; return; }
+function updateWeakStat(){ const el=document.getElementById('weakstat'); if(!el)return; if(!weakMode||!WG||abMode){ el.style.display='none'; return; }   // hidden while the a/𝒜 overlay draws its own header
   const alive=weakCirc? WG.kept.filter(Boolean).length : WG.classes.length;
   const aliveE=weakCirc? WG.edges.filter(([a,b])=>WG.kept[a]&&WG.kept[b]).length : WG.edges.length;
   const name='R'+(weakCirc?'^{\\circ}':'')+'_{'+WG.k+'}(\\underline{h})';
@@ -148,6 +148,7 @@ function openWeak(){ WG=computeWeak(curVec,weakK); if(!WG)return; buildWN();
   document.getElementById('weakbtn').classList.add('active');
   setWeakLayout('tree'); updateWeakStat(); }   // weak opens on the tree view (hover to animate); graph/poset via the buttons; k/∘ appear left of it
 function closeWeak(){ const wasTree=(weakLayout==='tree'); weakMode=false;
+  abMode=null; syncAB();                                                          // drop the ambient-poset overlay when leaving weak
   if(wasTree){ weakClosing=false; frameTree(); } else { weakClosing=true; weakTgt=0; }
   renderVizButtons();   // -> updateChrome: transport (in tree pol) + prim button reappear, weak controls explode away
   document.getElementById('weakbtn').classList.remove('active'); document.getElementById('weakstat').style.display='none'; }

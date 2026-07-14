@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Polarized Relations · weakpolviz</title>
-<link rel="stylesheet" href="css/style.css?v=9">
+<link rel="stylesheet" href="css/style.css?v=12">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 </head>
@@ -20,6 +20,10 @@
     <button id="replay" title="restart">↺</button>
   </span>
   <span id="vizbtns"></span>
+  <span id="abctrls" class="explode">
+    <button id="abtn" class="abbtn" title="ambient poset 𝒜^{r−2k}(h^k) overlay — realized profiles = weak matrices (moving vector F^k in green); missing profiles = dashed ghosts; missing ⊑-arrows = red">a</button>
+    <button id="Abtn" class="abbtn" title="same overlay, ghost vertices carrying the partial sums A(ℓ)=Σ_{j≤ℓ} a(j)">𝒜</button>
+  </span>
   <button id="matrixbtn" title="rotate every diamond into its upright weight matrix hᵖ𐞥 (no box)">rotate</button>
   <button id="decompbtn" title="◇ = Σ P_w(−a) for the hovered node — the KPR/Lefschetz decomposition">decomposition panel</button>
   <span id="rspacer"></span>
@@ -47,9 +51,9 @@
 <button id="hintshow" title="show explanation">?</button>
 <div id="info"></div>
 
-<script src="js/model.js?v=9"></script>
-<script src="js/render.js?v=9"></script>
-<script src="js/weak.js?v=9"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/model.js?v=12"></script>
+<script src="js/render.js?v=12"></script>
+<script src="js/weak.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>
