@@ -22,18 +22,21 @@ function hasseEdges(){ const N=G.vertices.length, adj={};
 function getHasse(){ if(_hasseFor===G) return _hasse; _hasse=hasseEdges(); _hasseFor=G; return _hasse; }
 
 /*=================== layout ===================*/
-function buildTree(){
-  tree=[]; byUid={}; let uid=0; const CAP=48;
-  const adj={}; G.edges.forEach((e,ei)=>{ (adj[e[0]]=adj[e[0]]||[]).push({to:e[1],move:G.moves[ei]}); });
-  const root={uid:uid++,vid:G.root,depth:0,parent:-1,kids:[],born:true,state:'done',x:0,y:0,tx:0,ty:0,mt:1,move:null,pile:null,_done:true,jit:0};
-  tree.push(root); byUid[root.uid]=root;
-  const q=[root];
-  while(q.length && tree.length<CAP){ const node=q.shift();
-    for(const k of (adj[node.vid]||[])){ if(tree.length>=CAP)break;
-      const c={uid:uid++,vid:k.to,depth:node.depth+1,parent:node.uid,kids:[],
-               born:false,state:'hidden',x:0,y:0,tx:0,ty:0,mt:0,move:k.move,pile:null,_done:false,jit:0};
-      node.kids.push(c.uid); tree.push(c); byUid[c.uid]=c;
-      if(c.depth < (G.r<=2?4:3)) q.push(c); } }
+function buildTree(){   // spanning tree laid out by longest-path RANK (same levels as the graph 'layered' view). A vertex the root reaches directly by a big degeneration still sits at its true rank, not depth 1.
+  tree=[]; byUid={}; let uid=0;
+  const adj={}, radj={}, indeg={}, mvOf={};
+  for(let i=0;i<G.vertices.length;i++) indeg[i]=0;
+  G.edges.forEach((e,ei)=>{ (adj[e[0]]=adj[e[0]]||[]).push(e[1]); (radj[e[1]]=radj[e[1]]||[]).push(e[0]); indeg[e[1]]++; mvOf[e[0]+'>'+e[1]]=G.moves[ei]; });
+  const rank={}, ind=Object.assign({},indeg), q=[];
+  for(let i=0;i<G.vertices.length;i++) if(ind[i]===0){ rank[i]=0; q.push(i); }
+  while(q.length){ const u=q.shift(); for(const w of (adj[u]||[])){ rank[w]=Math.max(rank[w]||0,(rank[u]||0)+1); if(--ind[w]===0) q.push(w); } }
+  const nodeOf={}, mk=(vid,par,mv,depth,done)=>{ const n={uid:uid++,vid,depth,parent:par,kids:[],born:!!done,state:done?'done':'hidden',x:0,y:0,tx:0,ty:0,mt:done?1:0,move:mv,pile:null,_done:!!done,jit:0}; tree.push(n); byUid[n.uid]=n; nodeOf[vid]=n; return n; };
+  mk(G.root,-1,null,0,true);
+  const byRank=[]; for(let i=0;i<G.vertices.length;i++){ const rr=rank[i]; if(rr==null)continue; (byRank[rr]=byRank[rr]||[]).push(i); }
+  for(let rr=1; rr<byRank.length; rr++) for(const v of (byRank[rr]||[])){ if(v===G.root)continue;
+    let par=-1; for(const u of (radj[v]||[])) if(rank[u]===rr-1){ par=u; break; }   // hang each vertex off a rank-(r−1) predecessor ⇒ tree depth == graph level, edges span exactly one level
+    if(par<0 || nodeOf[par]==null) continue;
+    const c=mk(v, nodeOf[par].uid, mvOf[par+'>'+v], rr, false); nodeOf[par].kids.push(c.uid); }
   layoutTree();
   parentsOrder=tree.filter(n=>n.kids.length>0).sort((a,b)=>a.depth-b.depth||a.tx-b.tx).map(n=>n.uid); }
 function layoutTree(){ let leafX=0; const XS=3.2,YS=3.8;
