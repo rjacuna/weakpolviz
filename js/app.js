@@ -175,7 +175,7 @@ function drawTree(){ if(!G)return; const U=cam.s*0.42;
   for(const n of tree){ if(!n.born||n.parent<0)continue; const p=byUid[n.parent];
     const eAl=(wk&&weakCirc)? (1-(n.expl||0))*(1-(p.expl||0)) : 1; if(eAl<=0.02) continue;   // fade edges touching exploding nodes
     const inc=hov&&(n.uid===hoverTreeUid||p.uid===hoverTreeUid), dim=hov&&!inc;
-    const dx=n.x-p.x, dy=n.y-p.y, f=(wk||primMode||mtx)?edgeFsq(dx,dy,Sw):edgeF(dx,dy,Hw);
+    const dx=n.x-p.x, dy=n.y-p.y, f=(wk||mtx)?edgeFsq(dx,dy,Sw):edgeF(dx,dy,Hw);   // shape, not numbers: pol+prim is a diamond (edgeF), matrix/weak are squares (edgeFsq)
     const [x1,y1]=toScreen(p.x+dx*f, p.y+dy*f),[x2,y2]=toScreen(n.x-dx*f, n.y-dy*f);
     ctx.save(); ctx.globalAlpha=eAl; ctx.lineWidth=(inc?2.6:1.4)*DPR; ctx.strokeStyle= inc?'rgba(130,180,255,0.95)':dim?'rgba(74,104,143,0.13)':'rgba(74,104,143,0.45)';
     ctx.beginPath(); ctx.moveTo(x1,y1); ctx.bezierCurveTo(x1,(y1+y2)/2,x2,(y1+y2)/2,x2,y2); ctx.stroke(); ctx.restore(); }
@@ -438,7 +438,7 @@ function updateHint(){ const el=document.getElementById('hinttext'); if(!el)retu
     }
   }
   if(primMode) s='<b style="color:#8fb4e6">Primitive cohomology.</b> Nodes show their primitive Hodge numbers P<sup>p,q</sup> = h<sup>p,q</sup> &minus; h<sup>p&minus;1,q&minus;1</sup> (zero above the middle weight). '+s;
-  if(matrixMode && !weakMode) s='<b style="color:#8fb4e6">Matrix view.</b> Every node is drawn as its upright weight matrix, without the box. '+s;
+  if(matrixMode && !weakMode) s='<b style="color:#8fb4e6">Rotated view.</b> Every node is rotated into its upright weight matrix h<sup>p,q</sup>, without the box. '+s;
   if(decompMode && !weakMode) s='<b style="color:#8fb4e6">KPR decomposition.</b> Hover a node to unpack ◇ = &Sigma;<sub>w,a</sub> P<sub>w</sub>(&minus;a) in the left panel; the shaded a = 0 column is P(◇). '+s;
   el.innerHTML = s + nav; }
 function renderMathLabels(){ const h=document.getElementById('hlbl'), k=document.getElementById('klbl');

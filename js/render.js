@@ -17,8 +17,8 @@ function cellBase(p,q,r){ return [(q-p)*0.62, (r-(p+q))*0.62]; }   // 180°: low
 // fraction along center→target where the ray exits the rounded diamond (half-diag Hw): 0.93·Hw at a vertex, Hw on the flat side
 function edgeF(dx,dy,Hw){ const L1=Math.abs(dx)+Math.abs(dy)||1e-6, s=L1/(Math.hypot(dx,dy)||1e-6);
   const fac=0.93+0.07*clamp((s-1)/0.148,0,1); return Math.min(0.45, fac*Hw/L1); }
-function edgeFsq(dx,dy,S){ const mx=Math.max(Math.abs(dx),Math.abs(dy))||1e-6, mn=Math.min(Math.abs(dx),Math.abs(dy));   // L-inf exit for the matrix-box (weak view), corner-rounded
-  return Math.min(0.45,(1-0.1*mn/mx)*S/mx); }
+function edgeFsq(dx,dy,S){ const mx=Math.max(Math.abs(dx),Math.abs(dy))||1e-6, mn=Math.min(Math.abs(dx),Math.abs(dy)), c=mn/mx, c0=0.8;   // exact L∞ exit onto the matrix box
+  return Math.min(0.45,(c<=c0?1:(1+c0)/(1+c))*S/mx); }   // flat edge out to c0·S (no pull-in); only the corner chamfer beyond it
 const boxHalfW=r=>(r/2+0.7)*MW*0.42;   // matrix-box half-side in world-position units
 const _slot=[]; (function(){ for(let s=0;s<80;s++){ if(s===0){_slot.push([0,0]);continue;}
   const rr=0.135*Math.sqrt(s), a=s*2.399963; _slot.push([rr*Math.cos(a),rr*Math.sin(a)]); }})();
