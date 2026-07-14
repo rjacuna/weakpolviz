@@ -21,7 +21,7 @@ label.small{color:var(--dim);font-size:12px}
 #err{position:fixed;top:56px;left:200px;background:#3a1420;border:1px solid var(--red);
   color:#ffd0d0;border-radius:8px;padding:6px 10px;font-size:12px;z-index:20;display:none}
 #progress{position:fixed;top:66px;left:50%;transform:translateX(-50%);min-width:300px;max-width:80vw;
-  background:#0d1626f2;border:1px solid #2f5aa0;border-radius:10px;padding:11px 13px;z-index:40;display:none;box-shadow:0 8px 30px #0009}
+  background:#0d1626f2;border:1px solid #2f5aa0;border-radius:10px;padding:11px 13px;z-index:60;display:none;box-shadow:0 8px 30px #0009}
 #progress.shown{display:block}
 #progbar{height:4px;border-radius:3px;background:#1a2740;overflow:hidden;position:relative;margin-bottom:8px}
 #progbar:before{content:'';position:absolute;top:0;height:100%;width:40%;border-radius:3px;
