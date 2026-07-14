@@ -96,7 +96,7 @@ function drawMatrixPlain(m,cx,cy,U,r,hi){   // upright matrix box WITHOUT the bl
     else wTxt(x,y,U,0,0.45,'#33415e'); } }
 function drawWeakNode(nd,U,t){ const [cx,cy]=toScreen(nd.x,nd.y);
   const sc=1+nd.expl*1.7, al=1-nd.expl; if(al<=0.02)return;
-  ctx.save(); ctx.globalAlpha=al; drawMatrixBox(nd.rep,cx,cy,U*sc,WG.r,WG.k,t, nd.ci===WG.rootC?'#22c55e':null, WG.hvec); ctx.restore(); }
+  ctx.save(); ctx.globalAlpha=al; drawMatrixBox(nd.rep,cx,cy,U*sc,WG.r,WG.k,t, null, WG.hvec); ctx.restore(); }
 function drawMorphMatrix(node,cx,cy,U,r,k){   // the pivot animation in the upright matrix frame, with the F^k box highlighted
   const P=node.pile, mt=node.mt, Pm=P.Pm, Cm=P.Cm, Lv=P.leave;
   const splosh=clamp(mt/0.15,0,1), splat=clamp((mt-0.85)/0.15,0,1), rr=Math.max(1.5,U*0.13);

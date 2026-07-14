@@ -234,18 +234,19 @@ function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
 // missing profiles = dashed ghosts, missing ⊑-covers = red. Maximal ⇔ no ghosts, saturated ⇔ no red.
 let abMode=null, abFramePending=false;                                             // null | 'a' | 'A'
 function movingVec(rep,r,k){ const C=rep.slice().reverse(); const a=[]; for(let q=k;q<=r-k;q++) a.push(C[k][q]); return a; }   // F^k frontier column p=k, q∈[k,r−k]
-function drawFkGreen(cx,cy,U,r,k){                                                  // green highlight box around the moving vector (matrix row i=r−k, cols k..r−k)
-  const x0=cx+(k-r/2-0.5)*MW*U, x1=cx+(r-k-r/2+0.5)*MW*U, yy=cy+(r-k-r/2)*MW*U, hh=MW*U;
-  ctx.save(); ctx.strokeStyle='#3ecf8e'; ctx.lineWidth=2.2*DPR; ctx.strokeRect(x0, yy-hh/2, x1-x0, hh); ctx.restore(); }
-function drawGhostNode(cx,cy,U,r,k,vec){                                            // missing profile: empty matrix box + the vector entries in the green frontier
+function drawFkGreen(cx,cy,U,r,k){                                                  // green box around the moving vector: the RIGHT column j=r−k (falling is vertical), rows k..r−k
+  const x=cx+(r-k-r/2)*MW*U, y0=cy+(k-r/2-0.5)*MW*U, hh=(r-2*k+1)*MW*U;
+  ctx.save(); ctx.strokeStyle='#3ecf8e'; ctx.lineWidth=2.2*DPR; ctx.strokeRect(x-MW*U/2, y0, MW*U, hh); ctx.restore(); }
+function drawGhostNode(cx,cy,U,r,k,vec){                                            // missing profile: empty matrix box + the vector entries down the green right column
   ctx.save(); wBoxPath(cx,cy,(r+2)*0.62*U,(r/2+0.7)*MW*U,1); ctx.setLineDash([4*DPR,3*DPR]); ctx.strokeStyle='rgba(138,160,191,0.5)'; ctx.lineWidth=1.4*DPR; ctx.stroke(); ctx.restore();
-  const yy=cy+(r-k-r/2)*MW*U; for(let i=0;i<vec.length;i++){ const j=k+i; wTxt(cx+(j-r/2)*MW*U, yy, U, vec[i], 1, '#cfe0f7'); }
+  const x=cx+(r-k-r/2)*MW*U; for(let i=0;i<vec.length;i++){ wTxt(x, cy+(k+i-r/2)*MW*U, U, vec[i], 1, '#cfe0f7'); }
   drawFkGreen(cx,cy,U,r,k); }
 function drawAmbientOverlay(){ if(!WG||!WN.length){ drawWeakMain(); return; }
   const r=WG.r, k=WG.k, n=r-2*k, m=WG.hvec[k], U=cam.s*0.42, AP=ambientPoset(n,m);
   if(AP.nodes.length>140){ drawWeakMain(); return; }
   const wn=new Map(); WN.forEach(w=>{ if(!WG.kept[w.ci])return; wn.set(movingVec(WG.classes[w.ci].rep,r,k).join(','), w); });   // realized profile → its live weak node (keeps its weak-graph position)
-  const rEdges=new Set(); (WG.keptEdges||[]).forEach(e=>{ rEdges.add(movingVec(WG.classes[e[0]].rep,r,k).join(',')+'>'+movingVec(WG.classes[e[1]].rep,r,k).join(',')); });
+  const kAdj=new Map(); AP.nodes.forEach(nd=>kAdj.set(nd.key,[]));                  // realized adjacency (a-keys) for reachability
+  (WG.keptEdges||[]).forEach(([ci,cj])=>{ const f=movingVec(WG.classes[ci].rep,r,k).join(','), t=movingVec(WG.classes[cj].rep,r,k).join(','); if(kAdj.has(f)) kAdj.get(f).push(t); });
   const pos=new Map(); for(const nd of AP.nodes){ const w=wn.get(nd.key); if(w) pos.set(nd.key,{x:w.x,y:w.y}); }
   const nbrs=new Map(); AP.nodes.forEach(nd=>nbrs.set(nd.key,[])); AP.covers.forEach(([f,t])=>{ nbrs.get(f).push(t); nbrs.get(t).push(f); });
   const ghosts=AP.nodes.filter(nd=>!pos.has(nd.key)), D=(r+2)*MW*1.25;
@@ -256,17 +257,16 @@ function drawAmbientOverlay(){ if(!WG||!WN.length){ drawWeakMain(); return; }
     const dx=pg.x-pn.x, dy=pg.y-pn.y, d=Math.hypot(dx,dy); if(d<D*0.92 && d>1e-3){ const s=(D*0.92-d)/d*0.5; pg.x+=dx*s; pg.y+=dy*s*0.35; } } }   // nudge ghosts apart
   if(abFramePending){ abFramePending=false; let a=1e9,b=1e9,c=-1e9,d2=-1e9; for(const p of pos.values()){ a=Math.min(a,p.x);c=Math.max(c,p.x);b=Math.min(b,p.y);d2=Math.max(d2,p.y); }
     const mg=(r+2)*MW*1.4; a-=mg;c+=mg;b-=mg;d2+=mg; const w=(c-a)||1,h=(d2-b)||1; cam.tx=cam.x=(a+c)/2; cam.ty=cam.y=(b+d2)/2; cam.ts=cam.s=clamp(Math.min(cv.width/w,cv.height/h)*0.9,8,120); autoFrame=false; }
-  const Sw=boxHalfW(r); let missE=0;
-  for(const [f,t] of AP.covers){ const pf=pos.get(f), pt=pos.get(t); if(!pf||!pt)continue;
-    const real = wn.has(f)&&wn.has(t)&&rEdges.has(f+'>'+t); if(!real) missE++;
-    const dx=pt.x-pf.x, dy=pt.y-pf.y, fr=edgeFsq(dx,dy,Sw);
+  const Sw=boxHalfW(r);
+  const reach=(f,t)=>{ if(f===t)return true; const seen=new Set([f]), st=[f]; while(st.length){ const u=st.pop(); for(const w of (kAdj.get(u)||[])){ if(w===t)return true; if(!seen.has(w)){ seen.add(w); st.push(w); } } } return false; };
+  const arrow=(pf,pt,col,dash,lw)=>{ if(!pf||!pt)return; const dx=pt.x-pf.x, dy=pt.y-pf.y, fr=edgeFsq(dx,dy,Sw);
     const [x1,y1]=toScreen(pf.x+dx*fr,pf.y+dy*fr), [x2,y2]=toScreen(pt.x-dx*fr,pt.y-dy*fr), ang=Math.atan2(y2-y1,x2-x1);
-    ctx.save();
-    if(real){ ctx.strokeStyle='rgba(74,104,143,0.75)'; ctx.lineWidth=1.5*DPR; }
-    else { ctx.strokeStyle='rgba(232,86,86,0.95)'; ctx.lineWidth=1.9*DPR; ctx.setLineDash([6*DPR,4*DPR]); }
+    ctx.save(); ctx.strokeStyle=col; ctx.lineWidth=lw*DPR; if(dash)ctx.setLineDash(dash);
     ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-Math.cos(ang-0.4)*7*DPR,y2-Math.sin(ang-0.4)*7*DPR); ctx.lineTo(x2-Math.cos(ang+0.4)*7*DPR,y2-Math.sin(ang+0.4)*7*DPR); ctx.closePath(); ctx.fillStyle=ctx.strokeStyle; ctx.fill();
-    ctx.restore(); }
+    ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-Math.cos(ang-0.4)*7*DPR,y2-Math.sin(ang-0.4)*7*DPR); ctx.lineTo(x2-Math.cos(ang+0.4)*7*DPR,y2-Math.sin(ang+0.4)*7*DPR); ctx.closePath(); ctx.fillStyle=col; ctx.fill(); ctx.restore(); };
+  (WG.keptEdges||[]).forEach(([ci,cj])=>{ arrow(WN[ci], WN[cj], 'rgba(74,104,143,0.8)', null, 1.5); });   // the ACTUAL R_k^∘ arrows — nothing deleted
+  let missE=0;                                                                     // ambient covers R_k^∘ does NOT realize (t unreachable from f) — genuine missing ⊑ relations
+  for(const [f,t] of AP.covers){ if(wn.has(f)&&wn.has(t)&&reach(f,t))continue; missE++; arrow(pos.get(f), pos.get(t), 'rgba(232,86,86,0.95)', [6*DPR,4*DPR], 1.9); }
   const t=easeIO(clamp(weakT,0,1));
   for(const nd of AP.nodes){ const p=pos.get(nd.key), w=wn.get(nd.key); const [cx,cy]=toScreen(p.x,p.y);
     if(w){ drawWeakNode(w,U,t); drawFkGreen(cx,cy,U,r,k); }                          // realized: the actual weak matrix box + green frontier
