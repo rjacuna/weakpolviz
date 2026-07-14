@@ -232,51 +232,100 @@ function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
 /*=================== ambient-poset overlay (a / A vectors on R_k^∘) ===================*/
 // Overlays the full poset 𝒜^{r-2k}(h^k) on the weak-circ graph: realized classes = diamonds (F^k ring highlit),
 // missing profiles = dashed ghosts, missing ⊑-covers = red. Maximal ⇔ no ghosts, saturated ⇔ no red.
-let abMode=null, abFramePending=false;                                             // null | 'a' | 'A'
+let abMode=null, abFramePending=false, abAnim=0;                                    // null | 'a' | 'A' ; abAnim 0→1 collapses every diamond onto its A-vector
+let abPos=new Map(), abHover=null, abHoverT=0;                                      // overlay vertex positions (for hit-testing) + hovered vertex key + hover animation
 function movingVec(rep,r,k){ const C=rep.slice().reverse(); const a=[]; for(let q=k;q<=r-k;q++) a.push(C[k][q]); return a; }   // F^k frontier column p=k, q∈[k,r−k]
-function drawFkGreen(cx,cy,U,r,k){                                                  // green box around the moving vector: the RIGHT column j=r−k (falling is vertical), rows k..r−k
-  const x=cx+(r-k-r/2)*MW*U, y0=cy+(k-r/2-0.5)*MW*U, hh=(r-2*k+1)*MW*U;
+function drawFkGreen(cx,cy,U,r,k){                                                  // green box around the moving vector: the LEFT column j=k (a coin here FALLS down the column), rows k..r−k
+  const x=cx+(k-r/2)*MW*U, y0=cy+(k-r/2-0.5)*MW*U, hh=(r-2*k+1)*MW*U;
   ctx.save(); ctx.strokeStyle='#3ecf8e'; ctx.lineWidth=2.2*DPR; ctx.strokeRect(x-MW*U/2, y0, MW*U, hh); ctx.restore(); }
-function drawGhostNode(cx,cy,U,r,k,vec){                                            // missing profile: empty matrix box + the vector entries down the green right column
+function drawGhostNode(cx,cy,U,r,k,aVec,AVec,et){                                   // missing profile: empty matrix box; a-vector (et=0) crossfades to the A-vector (et=1) down the green column
   ctx.save(); wBoxPath(cx,cy,(r+2)*0.62*U,(r/2+0.7)*MW*U,1); ctx.setLineDash([4*DPR,3*DPR]); ctx.strokeStyle='rgba(138,160,191,0.5)'; ctx.lineWidth=1.4*DPR; ctx.stroke(); ctx.restore();
-  const x=cx+(r-k-r/2)*MW*U; for(let i=0;i<vec.length;i++){ wTxt(x, cy+(k+i-r/2)*MW*U, U, vec[i], 1, '#cfe0f7'); }
+  const x=cx+(k-r/2)*MW*U;                                                          // reversed order matches the left column of the real matrix (top = high weight)
+  for(let i=0;i<aVec.length;i++) wTxt(x, cy+(k+i-r/2)*MW*U, U, aVec[aVec.length-1-i], 1-et, '#cfe0f7');
+  if(AVec&&et>0.01) for(let i=0;i<AVec.length;i++) wTxt(x, cy+(k+i-r/2)*MW*U, U, AVec[AVec.length-1-i], et, '#cfe0f7');
   drawFkGreen(cx,cy,U,r,k); }
-function drawAmbientOverlay(){ if(!WG||!WN.length){ drawWeakMain(); return; }
+// realized node collapsing (et:0→1) from the full weak matrix onto its A-vector: the box outline stays put (edges are unaffected), the interior slides into the green column and fades while the A-vector fades in
+function drawCollapseNode(m,cx,cy,U,r,k,et,hvec,AVec){
+  wBoxPath(cx,cy,(r+2)*0.62*U,(r/2+0.7)*MW*U,1); ctx.fillStyle='rgba(211,211,211,0.09)'; ctx.fill();
+  ctx.strokeStyle='rgba(211,211,211,0.30)'; ctx.lineWidth=1.1*DPR; ctx.stroke();
+  const colX=cx+(k-r/2)*MW*U, fade=1-et;
+  if(fade>0.01){ ctx.save(); ctx.globalAlpha*=fade;                                 // inner F^k / black-box frames fade out as the interior collapses
+    if(weakCirc && k>=1){ const lo=(k-r/2)*MW, hi=(r-k-r/2)*MW, pd=MW*0.5, ox=cx+(lo-pd)*U, oy=cy+(lo-pd)*U, ow=(hi-lo+2*pd)*U;
+      ctx.fillStyle='rgba(140,165,205,0.11)'; ctx.fillRect(ox,oy,ow,ow); ctx.strokeStyle='rgba(140,165,205,0.55)'; ctx.lineWidth=1*DPR; ctx.strokeRect(ox,oy,ow,ow); }
+    if(r-2*k-2>=0){ const lo=(k+1-r/2)*MW, hi2=(r-k-1-r/2)*MW, pd=MW*0.5; ctx.strokeStyle='rgba(140,165,205,0.8)'; ctx.lineWidth=1.3*DPR; ctx.strokeRect(cx+(lo-pd)*U, cy+(lo-pd)*U, (hi2-lo+2*pd)*U, (hi2-lo+2*pd)*U); }
+    for(let i=0;i<=r;i++)for(let j=0;j<=r;j++){ const x=cx+lerp((j-r/2)*MW,(k-r/2)*MW,et)*U, y=cy+(i-r/2)*MW*U;   // every cell slides toward column k
+      if(inBk(i,j,r,k)){ if(i===j && hvec){ let out=0; for(let ii=0;ii<=r;ii++){ if(ii<k+1||ii>r-k-1) out+=m[ii][j]; } const bd=hvec[j]-out; wTxt(x,y,U,bd,(bd>0?1:0.45),'#8fb4e6'); } }
+      else { const v=m[i][j]; if(v>=1) wTxt(x,y,U,v,1,'#f2d38c'); else wTxt(x,y,U,0,0.45,'#33415e'); } }
+    ctx.restore(); }
+  if(et>0.01) for(let i=0;i<AVec.length;i++) wTxt(colX, cy+(k+i-r/2)*MW*U, U, AVec[AVec.length-1-i], et, '#cfe0f7');   // A-vector fades in down the green column
+  drawFkGreen(cx,cy,U,r,k); }
+function drawAmbientOverlay(){ if(!WG){ drawWeakMain(); return; }
   const r=WG.r, k=WG.k, n=r-2*k, m=WG.hvec[k], U=cam.s*0.42, AP=ambientPoset(n,m);
-  if(AP.nodes.length>140){ drawWeakMain(); return; }
-  const wn=new Map(); WN.forEach(w=>{ if(!WG.kept[w.ci])return; wn.set(movingVec(WG.classes[w.ci].rep,r,k).join(','), w); });   // realized profile → its live weak node (keeps its weak-graph position)
-  const kAdj=new Map(); AP.nodes.forEach(nd=>kAdj.set(nd.key,[]));                  // realized adjacency (a-keys) for reachability
-  (WG.keptEdges||[]).forEach(([ci,cj])=>{ const f=movingVec(WG.classes[ci].rep,r,k).join(','), t=movingVec(WG.classes[cj].rep,r,k).join(','); if(kAdj.has(f)) kAdj.get(f).push(t); });
-  const pos=new Map(); for(const nd of AP.nodes){ const w=wn.get(nd.key); if(w) pos.set(nd.key,{x:w.x,y:w.y}); }
-  const nbrs=new Map(); AP.nodes.forEach(nd=>nbrs.set(nd.key,[])); AP.covers.forEach(([f,t])=>{ nbrs.get(f).push(t); nbrs.get(t).push(f); });
-  const ghosts=AP.nodes.filter(nd=>!pos.has(nd.key)), D=(r+2)*MW*1.25;
-  for(let pass=0; pass<10; pass++) for(const g of ghosts){ const ns=nbrs.get(g.key).map(kk=>pos.get(kk)).filter(Boolean);   // ghosts drift to the centroid of their poset-neighbours
-    if(ns.length) pos.set(g.key,{x:ns.reduce((s,p)=>s+p.x,0)/ns.length, y:ns.reduce((s,p)=>s+p.y,0)/ns.length}); }
-  ghosts.forEach((g,i)=>{ if(!pos.has(g.key)) pos.set(g.key,{x:i*D, y:(g.rank-m)*D}); });
-  for(let pass=0; pass<14; pass++) for(const g of ghosts){ const pg=pos.get(g.key); for(const nd of AP.nodes){ if(nd.key===g.key)continue; const pn=pos.get(nd.key); if(!pn)continue;
-    const dx=pg.x-pn.x, dy=pg.y-pn.y, d=Math.hypot(dx,dy); if(d<D*0.92 && d>1e-3){ const s=(D*0.92-d)/d*0.5; pg.x+=dx*s; pg.y+=dy*s*0.35; } } }   // nudge ghosts apart
-  if(abFramePending){ abFramePending=false; let a=1e9,b=1e9,c=-1e9,d2=-1e9; for(const p of pos.values()){ a=Math.min(a,p.x);c=Math.max(c,p.x);b=Math.min(b,p.y);d2=Math.max(d2,p.y); }
-    const mg=(r+2)*MW*1.4; a-=mg;c+=mg;b-=mg;d2+=mg; const w=(c-a)||1,h=(d2-b)||1; cam.tx=cam.x=(a+c)/2; cam.ty=cam.y=(b+d2)/2; cam.ts=cam.s=clamp(Math.min(cv.width/w,cv.height/h)*0.9,8,120); autoFrame=false; }
-  const Sw=boxHalfW(r);
-  const reach=(f,t)=>{ if(f===t)return true; const seen=new Set([f]), st=[f]; while(st.length){ const u=st.pop(); for(const w of (kAdj.get(u)||[])){ if(w===t)return true; if(!seen.has(w)){ seen.add(w); st.push(w); } } } return false; };
-  const arrow=(pf,pt,col,dash,lw)=>{ if(!pf||!pt)return; const dx=pt.x-pf.x, dy=pt.y-pf.y, fr=edgeFsq(dx,dy,Sw);
-    const [x1,y1]=toScreen(pf.x+dx*fr,pf.y+dy*fr), [x2,y2]=toScreen(pt.x-dx*fr,pt.y-dy*fr), ang=Math.atan2(y2-y1,x2-x1);
-    ctx.save(); ctx.strokeStyle=col; ctx.lineWidth=lw*DPR; if(dash)ctx.setLineDash(dash);
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-Math.cos(ang-0.4)*7*DPR,y2-Math.sin(ang-0.4)*7*DPR); ctx.lineTo(x2-Math.cos(ang+0.4)*7*DPR,y2-Math.sin(ang+0.4)*7*DPR); ctx.closePath(); ctx.fillStyle=col; ctx.fill(); ctx.restore(); };
-  (WG.keptEdges||[]).forEach(([ci,cj])=>{ arrow(WN[ci], WN[cj], 'rgba(74,104,143,0.8)', null, 1.5); });   // the ACTUAL R_k^∘ arrows — nothing deleted
-  let missE=0;                                                                     // ambient covers R_k^∘ does NOT realize (t unreachable from f) — genuine missing ⊑ relations
-  for(const [f,t] of AP.covers){ if(wn.has(f)&&wn.has(t)&&reach(f,t))continue; missE++; arrow(pos.get(f), pos.get(t), 'rgba(232,86,86,0.95)', [6*DPR,4*DPR], 1.9); }
-  const t=easeIO(clamp(weakT,0,1));
-  for(const nd of AP.nodes){ const p=pos.get(nd.key), w=wn.get(nd.key); const [cx,cy]=toScreen(p.x,p.y);
-    if(w){ drawWeakNode(w,U,t); drawFkGreen(cx,cy,U,r,k); }                          // realized: the actual weak matrix box + green frontier
-    else drawGhostNode(cx,cy,U,r,k, abMode==='A'? nd.A : nd.a); }                    // ghost: empty box carrying just the a- (or A-) entries
-  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.textAlign='left'; ctx.textBaseline='top';
-  const maxi = ghosts.length===0, sat = maxi && missE===0;
-  ctx.font='600 '+(13*DPR)+'px ui-sans-serif'; ctx.fillStyle='#8fb4e6';
-  ctx.fillText('R'+k+'°  ⊆  𝒜'+supN(n)+'('+m+')   ·   '+wn.size+'/'+AP.nodes.length+' vertices   ·   '+(maxi?'maximal ✓':'not maximal — '+ghosts.length+' missing (dashed)')+'   ·   '+(sat?'saturated ✓':'not saturated — '+missE+' cover'+(missE===1?'':'s')+' (red)'), 16*DPR, 66*DPR);
-  ctx.restore(); }
+  if(AP.nodes.length>160){ drawWeakMain(); return; }
+  abAnim += ((abMode==='A'?1:0)-abAnim)*0.16; const et=easeIO(clamp(abAnim,0,1));   // 𝒜 view collapses each diamond onto its A-vector
+  abHoverT += ((abHover!=null?1:0)-abHoverT)*0.2;
+  const mv=rep=>movingVec(rep,r,k).join(',');
+  const repOf=new Map(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) repOf.set(mv(c.rep), c.rep); });   // realized profiles (R_k^∘) → representative matrix
+  const kAdj=new Map(); AP.nodes.forEach(nd=>kAdj.set(nd.key,[]));
+  (WG.keptEdges||[]).forEach(([ci,cj])=>{ const f=mv(WG.classes[ci].rep), t=mv(WG.classes[cj].rep); if(kAdj.has(f)) kAdj.get(f).push(t); });
+  const reach=(f,t)=>{ if(f===t)return true; const seen=new Set([f]),st=[f]; while(st.length){const u=st.pop(); for(const w of (kAdj.get(u)||[])){ if(w===t)return true; if(!seen.has(w)){seen.add(w);st.push(w);} }} return false; };
+  const byKey=new Map(); AP.nodes.forEach(nd=>byKey.set(nd.key,nd));
+  const leq=(a,d)=>{ const Aa=byKey.get(a).A, Ad=byKey.get(d).A; for(let i=0;i<Aa.length;i++) if(Aa[i]>Ad[i]) return false; return true; };   // 𝒜's order: a ⊑ d ⟺ A_a ≤ A_d componentwise
+  const D=(r+2)*MW*1.25;
+  // LAYOUT: realized vertices sit at their EXACT tree-level positions (identical to the weak graph, so the Hodge–Tate MHS lands at the bottom); ghosts interpolate into that grid at their ambient-rank layer
+  const pos=new Map(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) pos.set(mv(c.rep), {x:WG.posC[ci].x, y:WG.posC[ci].y}); });
+  const ghosts=AP.nodes.filter(nd=>!pos.has(nd.key));
+  if(ghosts.length){
+    const nbr=new Map(); AP.nodes.forEach(nd=>nbr.set(nd.key,[])); AP.covers.forEach(([f,t])=>{ nbr.get(f).push(t); nbr.get(t).push(f); });
+    let ymin=1e9,ymax=-1e9,rmin=1e9,rmax=-1e9;
+    WG.classes.forEach((c,ci)=>{ if(!WG.kept[ci])return; const y=WG.posC[ci].y, R=byKey.get(mv(c.rep)).rank; if(y<ymin)ymin=y; if(y>ymax)ymax=y; if(R<rmin)rmin=R; if(R>rmax)rmax=R; });
+    const r2y=R=> rmax===rmin? (ymin+ymax)/2 : ymin+(ymax-ymin)*(R-rmin)/(rmax-rmin);   // ambient rank ΣA → y (higher ΣA = more degenerate = lower, matching the realized layout)
+    ghosts.forEach((g,i)=>pos.set(g.key,{x:(i%2?1:-1)*(1+((i/2)|0))*D, y:r2y(g.rank)}));                            // seed off the spine (alternating sides) so repulsion can't leave them collinear
+    for(let it=0; it<180; it++) for(const g of ghosts){ const P=pos.get(g.key); let fx=0;
+      const ns=nbr.get(g.key).map(kk=>pos.get(kk)).filter(Boolean);
+      if(ns.length){ const cx=ns.reduce((s,q)=>s+q.x,0)/ns.length; fx+=(cx-P.x)*0.09; }                            // gentle pull toward its ⊑-neighbours' column
+      for(const nd of AP.nodes){ if(nd.key===g.key)continue; const q=pos.get(nd.key); if(!q)continue;
+        const dx=P.x-q.x, dy=P.y-q.y, d=Math.hypot(dx,dy)+0.3; if(d<D*1.5) fx+=(dx/d)*(D*1.5-d)*0.32; }            // horizontal repulsion pushes ghosts off the realized spine onto side branches
+      P.x+=fx; P.y=r2y(g.rank); }
+  }
+  abPos=pos;
+  if(abFramePending){ abFramePending=false; let a=1e9,b=1e9,c=-1e9,d=-1e9; for(const p of pos.values()){ a=Math.min(a,p.x);c=Math.max(c,p.x);b=Math.min(b,p.y);d=Math.max(d,p.y); }
+    const mg=(r+2)*MW*1.4; a-=mg;c+=mg;b-=mg;d+=mg; const w=(c-a)||1,h=(d-b)||1, TOP=54*DPR;   // reserve a top band so the #abstat legend never covers the top vertex
+    cam.ts=cam.s=clamp(Math.min(cv.width/w,(cv.height-TOP)/h)*0.9,8,110); cam.tx=cam.x=(a+c)/2; cam.ty=cam.y=(b+d)/2 - (TOP/2)/cam.s; autoFrame=false; }
+  const Sw=boxHalfW(r), Rsc=Sw*cam.s;
+  const obs=[]; for(const p of pos.values()){ const [sx,sy]=toScreen(p.x,p.y); obs.push({x:sx,y:sy}); }   // every node centre — edges bow to route around them
+  const arrow=(pf,pt,col,dash,lw,seed)=>{ if(!pf||!pt)return; const dx=pt.x-pf.x, dy=pt.y-pf.y, fr=edgeFsq(dx,dy,Sw);
+    const [x1,y1]=toScreen(pf.x+dx*fr,pf.y+dy*fr), [x2,y2]=toScreen(pt.x-dx*fr,pt.y-dy*fr);
+    drawArrowCurved(x1,y1,x2,y2,obs,Rsc,{ color:col, dash:dash, width:lw, headColor:col, seed:seed||0 }); };
+  // EDGES: the full ⊑ order (transitive closure) = a genuine poset (a⊑b, b⊑d ⇒ a⊑d present). TWO styles only: realized (R_k^∘) = solid blue, missing = dashed red. On hover, non-incident edges fade and incident ones brighten.
+  const hv=abHover!=null && pos.has(abHover), T=abHoverT, rel=[];
+  for(const x of AP.nodes) for(const y of AP.nodes){ if(x.key===y.key||!leq(x.key,y.key))continue; rel.push({f:x.key,t:y.key, realized: repOf.has(x.key)&&repOf.has(y.key)&&reach(x.key,y.key)}); }
+  const drawRel=e=>{ const inc=hv&&(e.f===abHover||e.t===abHover), base=e.realized?0.72:0.9;
+    const a= inc? base+(1-base)*T : base*(1-0.85*T), w=(e.realized?1.4:1.7)+(inc?1.3*T:0);
+    arrow(pos.get(e.f),pos.get(e.t), (e.realized?'rgba(96,128,170,':'rgba(232,86,86,')+a+')', e.realized?null:[6*DPR,4*DPR], w, hstr(e.f+'>'+e.t)); };
+  for(const e of rel) if(!(hv&&(e.f===abHover||e.t===abHover))) drawRel(e);   // non-incident first
+  for(const e of rel) if(hv&&(e.f===abHover||e.t===abHover)) drawRel(e);       // incident on top
+  for(const nd of AP.nodes){ const p=pos.get(nd.key), rep=repOf.get(nd.key); const [cx,cy]=toScreen(p.x,p.y);
+    if(rep){ ctx.save(); drawCollapseNode(rep,cx,cy,U,r,k,et,WG.hvec,nd.A); ctx.restore(); }   // realized: weak matrix collapsing onto A (et=0 ⇒ full matrix)
+    else drawGhostNode(cx,cy,U,r,k, nd.a, nd.A, et); } }                                        // ghost: a-vector crossfading to A-vector — the R_k^∘ ⊆ 𝒜 legend is the #abstat HTML pillbox (updateABStat)
 function supN(n){ const s='⁰¹²³⁴⁵⁶⁷⁸⁹'; return String(n).split('').map(d=>s[+d]).join(''); }
+// the a/𝒜 overlay legend, rendered as an HTML pillbox (top-right) instead of canvas text — mirrors #weakstat's styling
+function updateABStat(){ const el=document.getElementById('abstat'); if(!el)return;
+  if(!(abMode && weakMode && WG && weakLayout!=='tree')){ el.style.display='none'; return; }
+  const r=WG.r, k=WG.k, n=r-2*k, m=WG.hvec[k], AP=ambientPoset(n,m);
+  const mv=rep=>movingVec(rep,r,k).join(',');
+  const realized=new Set(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) realized.add(mv(c.rep)); });
+  const kAdj=new Map(); AP.nodes.forEach(nd=>kAdj.set(nd.key,[]));
+  (WG.keptEdges||[]).forEach(([ci,cj])=>{ const f=mv(WG.classes[ci].rep), t=mv(WG.classes[cj].rep); if(kAdj.has(f)) kAdj.get(f).push(t); });
+  const reach=(f,t)=>{ if(f===t)return true; const seen=new Set([f]),st=[f]; while(st.length){const u=st.pop(); for(const w of (kAdj.get(u)||[])){ if(w===t)return true; if(!seen.has(w)){seen.add(w);st.push(w);} }} return false; };
+  let satFailN=0; for(const [f,t] of AP.covers){ if(realized.has(f)&&realized.has(t) && !reach(f,t)) satFailN++; }   // covers MISSING between two realized vertices = saturation failures (red); ghost-incident covers are maximality, not saturation
+  const missV=AP.nodes.filter(nd=>!realized.has(nd.key)).length, maxi=missV===0, sat=maxi&&satFailN===0;
+  const name=katexStr('R_'+k+'^{\\circ}\\ \\subseteq\\ \\mathcal{A}^{'+n+'}('+m+')');
+  const maxS=maxi? '<b class="ok">maximal ✓</b>' : 'not maximal — '+missV+' missing <span class="bad">(dashed)</span>';
+  const satS=satFailN>0 ? 'not saturated — '+satFailN+' cover'+(satFailN===1?'':'s')+' <span class="bad">(red)</span>'
+           : maxi ? '<b class="ok">saturated ✓</b>' : 'no missing covers among realized';
+  el.innerHTML=name+' &nbsp;·&nbsp; '+(AP.nodes.length-missV)+'/'+AP.nodes.length+' vertices &nbsp;·&nbsp; '+maxS+' &nbsp;·&nbsp; '+satS;
+  el.style.display='block'; }
 
 /*=================== primitive-decomposition panel (grid of KPR pieces P_w(-a)) ===================*/
 // A pannable "infinite canvas" on the left: rows = primitive weight w, columns = Tate twist a; the cells sum to the focused diamond.
@@ -362,11 +411,11 @@ cv.addEventListener('pointermove',e=>{ const dx=e.clientX-last[0],dy=e.clientY-l
   if(dragNode){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); dragNode.x=wx; dragNode.y=wy; last=[e.clientX,e.clientY]; return; }
   if(dragWN){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); dragWN.x=wx; dragWN.y=wy; dragWN.vx=dragWN.vy=0; last=[e.clientX,e.clientY]; return; }
   if(dragBg){ autoFrame=false; cam.x-=dx*DPR/cam.s; cam.y-=dy*DPR/cam.s; cam.tx=cam.x;cam.ty=cam.y;cam.ts=cam.s; last=[e.clientX,e.clientY]; return; }
-  if(weakMode && weakLayout!=='tree') hoverWN=weakHitNode(e.clientX,e.clientY);  // hover: focus a vertex's edges
+  if(weakMode && weakLayout!=='tree'){ if(abMode) abHover=abHitNode(e.clientX,e.clientY); else hoverWN=weakHitNode(e.clientX,e.clientY); }  // hover: focus a vertex's edges (overlay hits its own layout)
   else if(viz==='tree') hoverTreeUid=treeHitNode(e.clientX,e.clientY);
   else if(mode==='idle'){ const h=hitNode(e.clientX,e.clientY); hoverVid=h?h.vid:-1; }
   else hoverVid=-1; });
-cv.addEventListener('pointerleave',()=>{ hoverVid=-1; hoverWN=-1; hoverTreeUid=-1; });
+cv.addEventListener('pointerleave',()=>{ hoverVid=-1; hoverWN=-1; hoverTreeUid=-1; abHover=null; });
 cv.addEventListener('pointerup',e=>{ cv.releasePointerCapture(e.pointerId);
   if(dragWN){ dragWN.pin=false; dragWN=null; }
   else if(dragNode){ dragNode.pin=false; dragNode=null; }
@@ -381,6 +430,9 @@ function hitNode(cx,cy){ const [wx,wy]=toWorldXY(cx,cy); let best=null,bd=1e9;
 function weakHitNode(cx,cy){ if(!WG||!WN.length)return -1; const [wx,wy]=toWorldXY(cx,cy); let best=-1,bd=1e9;
   for(let i=0;i<WN.length;i++){ if((WN[i].expl||0)>0.5)continue; const d=Math.hypot(WN[i].x-wx,WN[i].y-wy); if(d<bd){bd=d;best=i;} }
   return bd<(WG.r/2+1.1)*MW? best:-1; }
+function abHitNode(cx,cy){ if(!WG||!abPos.size)return null; const [wx,wy]=toWorldXY(cx,cy); let best=null,bd=1e9;   // hit-test the a/𝒜 overlay's own vertex positions
+  for(const [key,p] of abPos){ const d=Math.hypot(p.x-wx,p.y-wy); if(d<bd){bd=d;best=key;} }
+  return bd<(WG.r/2+1.1)*MW? best:null; }
 function treeHitNode(cx,cy){ if(!G)return -1; const [wx,wy]=toWorldXY(cx,cy); let best=-1,bd=1e9;
   for(const n of tree){ if(!n.born)continue; const d=Math.hypot(n.x-wx,n.y-wy); if(d<bd){bd=d;best=n.uid;} }
   return bd<(G.r+1)*0.7? best:-1; }
@@ -408,7 +460,7 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   ac('matrixbtn', matrixMode); ac('decompbtn', decompMode);
   ex(document.getElementById('weakctrls'), !weakMode);                                    // k / ∘ appear only with weak, left of the weak button
   ex(document.getElementById('abctrls'), !(weakMode && weakLayout!=='tree'));             // a / 𝒜 overlay buttons: flush-left, weak graph/poset only
-  ac('abtn', abMode==='a'); ac('Abtn', abMode==='A');
+  ac('abtn', abMode==='a'); ac('Abtn', abMode==='A'); updateABStat();                     // keep the overlay legend pillbox in sync with the view
   const now = decompMode && !weakMode;                                                    // KPR decomposition panel: any pol view (tree/graph/poset), with or without prim
   if(now!==ppShown){ ppShown=now; const pp=document.getElementById('primpanel');
     if(pp) pp.classList.toggle('shown',now); document.body.classList.toggle('ppopen',now);
@@ -463,9 +515,9 @@ function syncAB(){ const a=document.getElementById('abtn'), A=document.getElemen
     if(!weakCirc){ weakCirc=true; const cb=document.getElementById('weakcirc'); if(cb) cb.checked=true; if(weakMode) refreshWeak(); }   // the overlay is about R_k^∘, so force the circ subgraph
     abFramePending=true; }
   else updateWeakStat();
-  updateHint(); }
-document.getElementById('abtn').onclick=()=>{ abMode = abMode==='a'? null : 'a'; syncAB(); };
-document.getElementById('Abtn').onclick=()=>{ abMode = abMode==='A'? null : 'A'; syncAB(); };
+  updateABStat(); updateHint(); }
+document.getElementById('abtn').onclick=()=>{ const was=abMode; abMode = abMode==='a'? null : 'a'; if(!was && abMode) abAnim=0; syncAB(); };   // open from off ⇒ start un-collapsed
+document.getElementById('Abtn').onclick=()=>{ const was=abMode; abMode = abMode==='A'? null : 'A'; if(!was && abMode) abAnim=0; syncAB(); };   // open straight into 𝒜 ⇒ animate the collapse
 document.getElementById('decompbtn').onclick=()=>{ decompMode=!decompMode; autoFrame=true; updateChrome(); updateHint();
   if(viz==='tree'&&G&&mode==='idle') frameTree(); };   // reframe the settled tree into the (now narrower / full) canvas
 document.getElementById('primbtn').onclick=()=>{ primMode=!primMode;                 // primitive cohomology; disables the play transport, keeps hover-replay

@@ -70,6 +70,12 @@ label.small{color:var(--dim);font-size:12px}
 #weakstat{position:fixed;left:12px;top:62px;background:#0d1626e6;border:1px solid #23324e;border-radius:8px;
   padding:6px 11px;font-size:12px;color:var(--dim);z-index:16;display:none}
 #weakstat b{color:#cfe0f7}
+#abstat{position:fixed;right:12px;top:62px;max-width:calc(100vw - 24px);background:#0d1626e6;border:1px solid #23324e;
+  border-radius:8px;padding:6px 11px;font-size:12px;color:var(--dim);z-index:16;display:none;white-space:nowrap}
+#abstat b{color:#cfe0f7}
+#abstat .ok{color:var(--grn)}
+#abstat .bad{color:var(--red)}
+#abstat .katex{font-size:1.05em;color:#cfe0f7}
 /* primitive-decomposition panel: pannable grid of the KPR pieces P_w(-a) */
 #primpanel{position:fixed;left:0;top:52px;width:48vw;height:calc(100vh - 52px);z-index:13;
   background:#0b1322;border-right:1px solid #23324e;display:none;flex-direction:column}

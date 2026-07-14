@@ -20,6 +20,46 @@ function edgeF(dx,dy,Hw){ const L1=Math.abs(dx)+Math.abs(dy)||1e-6, s=L1/(Math.h
 function edgeFsq(dx,dy,S){ const mx=Math.max(Math.abs(dx),Math.abs(dy))||1e-6, mn=Math.min(Math.abs(dx),Math.abs(dy)), c=mn/mx, c0=0.8;   // exact L∞ exit onto the matrix box
   return Math.min(0.45,(c<=c0?1:(1+c0)/(1+c))*S/mx); }   // flat edge out to c0·S (no pull-in); only the corner chamfer beyond it
 const boxHalfW=r=>(r/2+0.7)*MW*0.42;   // matrix-box half-side in world-position units
+function hstr(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }   // stable per-edge seed (chooses a curve side deterministically, no RNG)
+// perpendicular bow so a straight edge x1..x2 arcs clear of any node CENTRE it would otherwise pass over (obstacles: screen {x,y}; R = node screen radius)
+function bowOffset(x1,y1,x2,y2,obstacles,R,seed){
+  const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, CLEAR=R*1.45;
+  let push=0, side=0;
+  for(const o of (obstacles||[])){ const t=((o.x-x1)*dx+(o.y-y1)*dy)/(L*L); if(t<=0.06||t>=0.94) continue;   // only nodes strictly between the endpoints
+    const px=x1+dx*t, py=y1+dy*t, sd=(o.x-px)*nx+(o.y-py)*ny, ad=Math.abs(sd);
+    if(ad<CLEAR){ const need=(CLEAR-ad)+R*0.85; if(need>push){ push=need; side=(ad<0.5)?0:(sd>=0?-1:1); } } }   // bow AWAY from the blocking node
+  const base=clamp(L*0.11,0,R*3.5);   // gentle arc on every edge so parallels/longer skips separate (longer ⇒ bows more)
+  let mag=push, sgn=side; if(base>mag){ mag=base; sgn=0; }
+  if(sgn===0) sgn=(seed&1)?1:-1;      // collinear or unobstructed: pick a stable side from the seed
+  return {ox:nx*mag*sgn, oy:ny*mag*sgn}; }
+// quadratic-Bézier arrow from (x1,y1) to (x2,y2), bowed to avoid obstacles, with the head tangent to the curve
+function drawArrowCurved(x1,y1,x2,y2,obstacles,R,o){ o=o||{};
+  const {ox,oy}=bowOffset(x1,y1,x2,y2,obstacles,R,o.seed||0), cx=(x1+x2)/2+ox, cy=(y1+y2)/2+oy;
+  ctx.save(); if(o.alpha!=null) ctx.globalAlpha*=o.alpha;
+  ctx.lineWidth=(o.width||1.4)*DPR; ctx.strokeStyle=o.color||'rgba(74,104,143,0.7)'; if(o.dash) ctx.setLineDash(o.dash);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.quadraticCurveTo(cx,cy,x2,y2); ctx.stroke(); ctx.setLineDash([]);
+  const ang=Math.atan2(y2-cy,x2-cx), h=(o.head||7)*DPR; ctx.fillStyle=o.headColor||o.color||'rgba(110,168,255,0.9)';
+  ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-Math.cos(ang-0.4)*h,y2-Math.sin(ang-0.4)*h); ctx.lineTo(x2-Math.cos(ang+0.4)*h,y2-Math.sin(ang+0.4)*h); ctx.closePath(); ctx.fill();
+  ctx.restore(); }
+// barycentric layer ordering: reorder nodes within each layer toward the mean position of their neighbours in the adjacent layer (fewer crossings, no collinear stacking)
+function baryOrder(layerMap, radj, adj){
+  const ranks=Object.keys(layerMap).map(Number).sort((a,b)=>a-b); if(ranks.length<2) return;
+  for(let s=0;s<6;s++){ const down=(s%2===0), seq= down? ranks : ranks.slice().reverse();
+    for(let li=1; li<seq.length; li++){ const R=seq[li], P=seq[li-1], ord={}; layerMap[P].forEach((id,i)=>ord[id]=i);
+      const nbr= down? radj : adj;   // sweep down ⇒ order by parents above; sweep up ⇒ by children below
+      const rows=layerMap[R].map((id,i)=>{ const xs=(nbr[id]||[]).map(x=>ord[x]).filter(v=>v!=null); return {id, b: xs.length? xs.reduce((a,c)=>a+c,0)/xs.length : i, i}; });
+      rows.sort((a,c)=>(a.b-c.b)||(a.i-c.i)); layerMap[R]=rows.map(o=>o.id); } } }
+// full layered layout for an arbitrary DAG (node keys + directed edges): longest-path ranks, barycentric within-layer order, uniform grid. Returns Map key->{x,y}.
+function layeredLayout(keys, edges, D){
+  const set=new Set(keys), adj={}, radj={}, indeg={}; keys.forEach(k=>{ indeg[k]=0; });
+  for(const [a,b] of edges){ if(!set.has(a)||!set.has(b)||a===b) continue; (adj[a]=adj[a]||[]).push(b); (radj[b]=radj[b]||[]).push(a); indeg[b]++; }
+  const rank={}, ind={}; keys.forEach(k=>{ rank[k]=0; ind[k]=indeg[k]; }); const q=[]; keys.forEach(k=>{ if(!indeg[k]) q.push(k); });
+  let guard=keys.length*4+8;
+  while(q.length && guard-->0){ const u=q.shift(); for(const w of (adj[u]||[])){ if(rank[u]+1>rank[w]) rank[w]=rank[u]+1; if(--ind[w]===0) q.push(w); } }
+  const layers={}; keys.forEach(k=>{ (layers[rank[k]]=layers[rank[k]]||[]).push(k); });
+  baryOrder(layers, radj, adj);
+  const pos=new Map(); Object.keys(layers).forEach(R=>{ const arr=layers[R]; arr.forEach((k,i)=>pos.set(k,{x:(i-(arr.length-1)/2)*D, y:(+R)*D})); });
+  return pos; }
 const _slot=[]; (function(){ for(let s=0;s<80;s++){ if(s===0){_slot.push([0,0]);continue;}
   const rr=0.135*Math.sqrt(s), a=s*2.399963; _slot.push([rr*Math.cos(a),rr*Math.sin(a)]); }})();
 function latticeDots(r,cx,cy,U){ ctx.fillStyle='#1a2740';

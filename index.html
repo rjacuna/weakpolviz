@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Polarized Relations · weakpolviz</title>
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=28">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 </head>
@@ -21,7 +21,7 @@
   </span>
   <span id="vizbtns"></span>
   <span id="abctrls" class="explode">
-    <button id="abtn" class="abbtn" title="ambient poset 𝒜^{r−2k}(h^k) overlay — realized profiles = weak matrices (moving vector F^k in green); missing profiles = dashed ghosts; missing ⊑-arrows = red">a</button>
+    <button id="abtn" class="abbtn" title="ambient poset 𝒜^{r−2k}(h^k) overlay — realized profiles = weak matrices (moving vector F^k in green); missing profiles = dashed ghosts (maximality) reached by 𝒜's grey Hasse backbone; a cover missing between two REALIZED profiles = red (saturation)">a</button>
     <button id="Abtn" class="abbtn" title="same overlay, ghost vertices carrying the partial sums A(ℓ)=Σ_{j≤ℓ} a(j)">𝒜</button>
   </span>
   <button id="matrixbtn" title="rotate every diamond into its upright weight matrix hᵖ𐞥 (no box)">rotate</button>
@@ -36,6 +36,7 @@
   <button id="menubtn" title="animation settings">☰</button>
 </div>
 <div id="weakstat"></div>
+<div id="abstat"></div>
 <div id="menu">
   <div class="row"><span class="small">graph layout</span><select id="graphlayout" title="layout for graph views (not poset)"><option value="force">force-directed</option><option value="layered" selected>layered (tree level)</option><option value="radial">radial</option></select></div>
   <div class="row"><span class="small">speed</span><input id="speed" type="range" min="0.3" max="3" step="0.1" value="1" style="width:120px"></div>
@@ -51,9 +52,9 @@
 <button id="hintshow" title="show explanation">?</button>
 <div id="info"></div>
 
-<script src="js/model.js?v=13"></script>
-<script src="js/render.js?v=13"></script>
-<script src="js/weak.js?v=13"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/model.js?v=28"></script>
+<script src="js/render.js?v=28"></script>
+<script src="js/weak.js?v=28"></script>
+<script src="js/app.js?v=28"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /*=================== weak polarized relations : quotient of R(h) mod the black box B_k, rendered as matrices ===================*/
-let weakMode=false, weakClosing=false, weakK=0, weakCirc=false, WG=null, WN=[], weakT=0, weakTgt=0, weakLayout='graph', weakHoverPileUid=-1, weakTreeMt=0;
+let weakMode=false, weakClosing=false, weakK=0, weakCirc=false, WG=null, WN=[], weakT=0, weakTgt=0, weakLayout='graph', weakHoverPileUid=-1, weakTreeMt=0, weakHoverT=0;
 function inBk(i,j,r,k){ return i>=k+1 && i<=r-k-1 && j>=k+1 && j<=r-k-1; }        // black box B_k=[k+1,r-k-1]^2 (matrix coords)
 function wKey(m,r,k){ let o=''; for(let i=0;i<=r;i++)for(let j=0;j<=r;j++) if(!inBk(i,j,r,k)) o+=m[i][j]+','; return o; }  // data outside B_k
 function isPureOutside(m,r,kk){ for(let i=0;i<=r;i++)for(let j=0;j<=r;j++){ if(m[i][j]>0 && j+(r-i)!==r && !inBk(i,j,r,kk)) return false; } return true; }
@@ -22,6 +22,8 @@ function computeWeak(hvec,k){
   for(let i=0;i<cls.length;i++) if(indeg[i]===0) qq.push(i);
   while(qq.length){ const u=qq.shift(); for(const w of (adj[u]||[])){ rank[w]=Math.max(rank[w],rank[u]+1); if(--ind[w]===0) qq.push(w); } }
   const layers={}; cls.forEach((c,i)=>{ (layers[rank[i]]=layers[rank[i]]||[]).push(i); });
+  const radj={}; edges.forEach(([a,b])=>{ (radj[b]=radj[b]||[]).push(a); });
+  baryOrder(layers, radj, adj);                                                    // spread each layer to cut crossings / avoid collinear stacks
   const D=(r+2)*MW*1.25, pos=[];
   Object.keys(layers).forEach(R=>{ const arr=layers[R]; arr.forEach((ci,kk)=>{ pos[ci]={x:(kk-(arr.length-1)/2)*D, y:(+R)*D}; }); });
   const kept=cls.map((c)=> k===0 ? true : c.reps.some(vi=>isPureOutside(Gs.vertices[vi],r,k-1)) );  // R_k^o = pure outside B_{k-1}
@@ -35,13 +37,16 @@ function computeWeak(hvec,k){
   keptIdx.forEach(i=>{ if(indC[i]===0) qc.push(i); });
   while(qc.length){ const u=qc.shift(); for(const w of (adjC[u]||[])){ rankC[w]=Math.max(rankC[w],rankC[u]+1); if(--indc[w]===0) qc.push(w); } }
   const layersC={}; keptIdx.forEach(i=>{ (layersC[rankC[i]]=layersC[rankC[i]]||[]).push(i); });
+  const radjC={}; keptEdges.forEach(([a,b])=>{ (radjC[b]=radjC[b]||[]).push(a); });
+  baryOrder(layersC, radjC, adjC);
   const posC=pos.map(p=>({x:p.x,y:p.y}));
   Object.keys(layersC).forEach(R=>{ const arr=layersC[R]; arr.forEach((ci,kk)=>{ posC[ci]={x:(kk-(arr.length-1)/2)*D, y:(+R)*D}; }); });
   return {r,k,hvec:hvec.slice(),classes:cls,vclass,edges,keptEdges,pos,posC,rank,rankC,rootC,kept,hp,
     isPoset:full.isPoset,hasse:full.hasse, isPosetC:sub.isPoset,hasseC:sub.hasse}; }
 function posetTargetsW(){ return (weakCirc && WG.posC)? WG.posC : WG.pos; }     // POSET view only: R_k^o gets its own clean layered subgraph layout
-function graphTargetsW(){ if(graphLayout==='radial'){ const ranks={}; WN.forEach((n,i)=>ranks[i]=(WG.rank?WG.rank[i]:0)); return radialLayout(ranks,(WG.r+2)*MW*1.25); }
-  const p={}; WN.forEach((n,i)=>p[i]=WG.pos[i]); return p; }   // GRAPH view: full-quotient layered positions (independent of the poset/circ layout)
+function graphTargetsW(){ const circ=weakCirc&&WG.posC;
+  if(graphLayout==='radial'){ const ranks={}; WN.forEach((n,i)=>ranks[i]=((circ?WG.rankC:WG.rank)?(circ?WG.rankC:WG.rank)[i]:0)); return radialLayout(ranks,(WG.r+2)*MW*1.25); }
+  const src=circ?WG.posC:WG.pos, p={}; WN.forEach((n,i)=>p[i]=src[i]); return p; }   // GRAPH view: circ uses the R_k^∘ re-ranked layered layout (clean grid), else the full-quotient layout
 function buildWN(){ WN=WG.classes.map((c,i)=>({ci:i, rep:c.rep, x:WG.pos[i].x, y:WG.pos[i].y, ry:WG.pos[i].y, vx:0, vy:0, expl:0})); }
 function weakForce(){ const r=WG.r, REST=(r+2)*MW*1.25, REP=4*(REST/3.6)*(REST/3.6);
   for(const n of WN){ if((n.expl||0)>0.5)continue; let fx=-n.x*0.02, fy=(n.ry-n.y)*0.16;
@@ -115,17 +120,18 @@ function drawMorphMatrix(node,cx,cy,U,r,k){   // the pivot animation in the upri
       else if(mt<0.85){ const th=e*Math.PI/2, c=Math.cos(th), s=Math.sin(th); const ox=g.ss[0]-g.pivot[0], oy=g.ss[1]-g.pivot[1]; x=g.pivot[0]+ox*c-oy*s; y=g.pivot[1]+ox*s+oy*c; }
       else { const t=splat; x=lerp(g.ds[0],g.dc[0],easeIO(t)); y=lerp(g.ds[1],g.dc[1],easeIO(t)); sq=1+0.6*Math.sin(Math.PI*t); alpha=1-t; }
       const mx=(x+y)*MW/1.24, my=(x-y)*MW/1.24; drawSquish(cx+mx*U, cy+my*U, rr, sq, col, alpha); } } }   // diamond -> matrix (45deg)
-function drawWeakMain(){ if(!WG){ return; } const U=cam.s*0.42, r=WG.r, t=easeIO(clamp(weakT,0,1)), Sw=boxHalfW(r), hov=hoverWN>=0;
+function drawWeakMain(){ if(!WG){ return; } const U=cam.s*0.42, r=WG.r, t=easeIO(clamp(weakT,0,1)), Sw=boxHalfW(r), hov=hoverWN>=0, R=Sw*cam.s;
   const EE=(weakLayout==='poset')? wActiveHasse() : WG.edges;   // poset view shows the Hasse (cover relations); circ-aware
+  const obs=[]; for(const nd of WN){ if((nd.expl||0)>0.5) continue; const [sx,sy]=toScreen(nd.x,nd.y); obs.push({x:sx,y:sy}); }   // node centres the edges must route around
+  const HT=weakHoverT;
   for(const [a,b] of EE){ const na=WN[a], nb=WN[b]; if(!na||!nb)continue; const al0=(1-(na.expl||0))*(1-(nb.expl||0)); if(al0<=0.02)continue;
-    const inc=hov&&(a===hoverWN||b===hoverWN), dim=hov&&!inc, al=al0*(dim?0.2:1);
+    const inc=hov&&(a===hoverWN||b===hoverWN), al=al0*(inc? 1 : 1-0.8*HT);   // incoming/outgoing edges stay lit; the rest fade
     const dx=nb.x-na.x, dy=nb.y-na.y, f=edgeFsq(dx,dy,Sw);   // connect to the matrix-box (square) boundary
-    const [bx,by]=toScreen(na.x+dx*f,na.y+dy*f), [ex,ey]=toScreen(nb.x-dx*f,nb.y-dy*f), ang=Math.atan2(ey-by,ex-bx);
-    ctx.save(); ctx.globalAlpha=al; ctx.lineWidth=(inc?2.4:1.4)*DPR; ctx.strokeStyle= inc?'rgba(130,180,255,0.98)':'rgba(74,104,143,0.7)'; ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(ex,ey); ctx.stroke();
-    ctx.fillStyle= inc?'rgba(150,190,255,1)':'rgba(110,168,255,0.9)'; ctx.beginPath(); ctx.moveTo(ex,ey);
-    ctx.lineTo(ex-Math.cos(ang-0.4)*7*DPR,ey-Math.sin(ang-0.4)*7*DPR); ctx.lineTo(ex-Math.cos(ang+0.4)*7*DPR,ey-Math.sin(ang+0.4)*7*DPR); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    const [bx,by]=toScreen(na.x+dx*f,na.y+dy*f), [ex,ey]=toScreen(nb.x-dx*f,nb.y-dy*f);
+    drawArrowCurved(bx,by,ex,ey,obs,R,{ seed:hstr(a+'>'+b), alpha:al, width:1.4+(inc?1.2*HT:0),
+      color: inc?'rgba(130,180,255,'+(0.7+0.28*HT)+')':'rgba(74,104,143,0.7)', headColor: inc?'rgba(150,190,255,1)':'rgba(110,168,255,0.9)' }); }
   for(const nd of WN){ if((nd.expl||0)>=0.995) continue; drawWeakNode(nd,U,t); } }
-function stepWeak(dt){ weakT += (weakTgt-weakT)*0.16;
+function stepWeak(dt){ weakT += (weakTgt-weakT)*0.16; weakHoverT += ((hoverWN>=0?1:0)-weakHoverT)*0.2;   // smooth hover focus
   for(let i=0;i<WN.length;i++){ const tgt=(weakCirc && !WG.kept[i])?1:0; WN[i].expl=(WN[i].expl||0)+(tgt-(WN[i].expl||0))*0.16; }
   if(weakClosing && weakT<0.02){ weakClosing=false; autoFrame=true;   // un-toggling weak returns to the tree view
     viz='tree'; renderVizButtons(); finishTree(); frameTree(); }
@@ -133,9 +139,9 @@ function stepWeak(dt){ weakT += (weakTgt-weakT)*0.16;
     if(weakLayout==='graph'){ if(graphLayout==='force') weakForce();          // graph view obeys the chosen graph layout
       else { const T=graphTargetsW(); for(let i=0;i<WN.length;i++){ if(WN[i].pin)continue; WN[i].x=lerp(WN[i].x,T[i].x,0.14); WN[i].y=lerp(WN[i].y,T[i].y,0.14); WN[i].vx=WN[i].vy=0; } } }
     else { const T=posetTargetsW(); for(let i=0;i<WN.length;i++){ WN[i].x=lerp(WN[i].x,T[i].x,0.14); WN[i].y=lerp(WN[i].y,T[i].y,0.14); WN[i].vx=WN[i].vy=0; } } }   // poset: its own circ-aware layered layout
-  if(autoFrame) frameWeak(); }
+  if(autoFrame && !abMode) frameWeak(); }   // the a/𝒜 overlay uses its own ambient-rank layout + framing
 function katexStr(s){ return window.katex? window.katex.renderToString(s,{throwOnError:false}) : s; }
-function updateWeakStat(){ const el=document.getElementById('weakstat'); if(!el)return; if(!weakMode||!WG||abMode){ el.style.display='none'; return; }   // hidden while the a/𝒜 overlay draws its own header
+function updateWeakStat(){ const el=document.getElementById('weakstat'); if(!el)return; if(!weakMode||!WG||abMode){ el.style.display='none'; return; }   // hidden while the a/𝒜 overlay shows its own #abstat pillbox
   const alive=weakCirc? WG.kept.filter(Boolean).length : WG.classes.length;
   const aliveE=weakCirc? WG.edges.filter(([a,b])=>WG.kept[a]&&WG.kept[b]).length : WG.edges.length;
   const name='R'+(weakCirc?'^{\\circ}':'')+'_{'+WG.k+'}(\\underline{h})';
