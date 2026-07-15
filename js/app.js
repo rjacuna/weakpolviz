@@ -450,7 +450,20 @@ if(ppcv){ let ppLast=[0,0]; const ppPtrs=new Map(); let ppPinch=null;           
     if(ppPtrs.size<2) ppPinch=null; if(ppPtrs.size===1){ const r=[...ppPtrs.values()][0]; ppLast=[r.x,r.y]; } };
   ppcv.addEventListener('pointerup',ppEnd); ppcv.addEventListener('pointercancel',ppEnd);
   ppcv.addEventListener('wheel',e=>{ e.preventDefault(); ppcam.s=clamp(ppcam.s*Math.exp(-e.deltaY*0.0016),36,360); },{passive:false}); }
-addEventListener('resize',()=>{ if(panelUserSized) panelW=clamp(panelW,220,Math.round(window.innerWidth*0.82)); applyPanelW(); if(ppShown) ppResize(); });
+addEventListener('resize',()=>{ if(panelUserSized) panelW=clamp(panelW,220,Math.round(window.innerWidth*0.82)); applyPanelW(); if(ppShown) ppResize(); fitBar(); });
+addEventListener('orientationchange',()=>setTimeout(fitBar,120));
+// Split the toolbar into two rows when the current button set doesn't fit on one (portrait phones); a single row otherwise (landscape / desktop).
+// BARH (the real bar height) feeds the canvas offset + everything anchored below the bar, so the layout stays correct at either height.
+let _fitting=false;
+function fitBar(){ if(_fitting)return; _fitting=true;
+  const bar=document.getElementById('bar');
+  document.body.classList.remove('barsplit');   // measure the single-row width first
+  const overflow = bar.scrollWidth > bar.clientWidth + 2;
+  if(overflow) document.body.classList.add('barsplit');
+  const h = overflow ? Math.ceil(bar.getBoundingClientRect().height) : 52;
+  if(h!==BARH){ BARH=h; document.documentElement.style.setProperty('--barh', h+'px'); resize(); autoFrame=true; }
+  else document.documentElement.style.setProperty('--barh', h+'px');
+  _fitting=false; }
 
 /*=================== interaction ===================*/
 let dragBg=false, dragNode=null, dragWN=null, dragAB=null, last=[0,0], moved=false, hoverVid=-1, hoverWN=-1, hoverTreeUid=-1, treeHoverPileUid=-1, treeHoverMt=0;
@@ -474,7 +487,7 @@ cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); cvPtrs
 cv.addEventListener('pointermove',e=>{ if(cvPtrs.has(e.pointerId)) cvPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch && cvPtrs.size>=2){ const ni=pinchInfo();                               // pinch: zoom about the finger midpoint, panning with it
     const [wx,wy]=toWorldXY(pinch.cx,pinch.cy); cam.s=cam.ts=clamp(cam.s*(ni.d/pinch.d),8,220);
-    cam.x=wx-(ni.cx*DPR-cv.width/2-viewOffsetX)/cam.s; cam.y=wy-((ni.cy-52)*DPR-cv.height/2)/cam.s; cam.tx=cam.x; cam.ty=cam.y; pinch=ni; return; }
+    cam.x=wx-(ni.cx*DPR-cv.width/2-viewOffsetX)/cam.s; cam.y=wy-((ni.cy-BARH)*DPR-cv.height/2)/cam.s; cam.tx=cam.x; cam.ty=cam.y; pinch=ni; return; }
   const dx=e.clientX-last[0],dy=e.clientY-last[1];
   if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
   if(dragNode){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); dragNode.x=wx; dragNode.y=wy; last=[e.clientX,e.clientY]; return; }
@@ -538,7 +551,8 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   if(now!==ppShown){ ppShown=now; const pp=document.getElementById('primpanel');
     if(now) applyPanelW();                                                                // set --ppw before showing so the panel + tab + hint line up
     if(pp) pp.classList.toggle('shown',now); document.body.classList.toggle('ppopen',now);
-    if(now && G){ ppResize(); if(primStickyVid<0) primStickyVid=(hoverVid>=0?hoverVid:firstLeafVid()); primPanelVid=primStickyVid; updatePrimPanel(primStickyVid); ppFit(); } } }
+    if(now && G){ ppResize(); if(primStickyVid<0) primStickyVid=(hoverVid>=0?hoverVid:firstLeafVid()); primPanelVid=primStickyVid; updatePrimPanel(primStickyVid); ppFit(); } }
+  fitBar(); }                                                                             // the visible button set just changed — re-check whether the toolbar needs to split into two rows
 // pol-graph legend (#polstat): vertex/edge counts + the hidden "poset" trigger. Shown in the pol graph/poset views (not tree, not weak).
 function polStat(){ const el=document.getElementById('polstat'); if(!el)return;
   if(weakMode || !G || !(viz==='graph'||viz==='poset')){ el.style.display='none'; return; }
@@ -718,8 +732,9 @@ function renderMathLabels(){ const h=document.getElementById('hlbl'), k=document
   else { if(h) h.innerHTML='<u>h</u>&nbsp;='; if(k) k.textContent='k ='; } }
 document.getElementById('hinthide').onclick=()=>{ document.getElementById('hint').style.display='none'; document.getElementById('hintshow').style.display='block'; };
 document.getElementById('hintshow').onclick=()=>{ document.getElementById('hint').style.display=''; document.getElementById('hintshow').style.display='none'; };
-renderMathLabels(); loadExplanations(); window.addEventListener('load', ()=>{ renderMathLabels(); updateHint(); });   // KaTeX/marked load deferred — re-render once ready
+renderMathLabels(); loadExplanations(); window.addEventListener('load', ()=>{ renderMathLabels(); updateHint(); fitBar(); });   // KaTeX/marked load deferred — re-render + re-fit once ready (label widths settle)
 
 /*=================== boot ===================*/
 requestAnimationFrame(frame);
 tryRun('1,2,2,1');
+fitBar();

@@ -2,8 +2,9 @@
 const MW=0.9;                                                                    // matrix cell step (world units)
 const cv=document.getElementById('stage'), ctx=cv.getContext('2d');
 let DPR=Math.max(1,Math.min(2,window.devicePixelRatio||1));
-function resize(){ cv.width=innerWidth*DPR; cv.height=(innerHeight-52)*DPR;
-  cv.style.width=innerWidth+'px'; cv.style.height=(innerHeight-52)+'px'; }
+let BARH=52;                                                                     // toolbar height (grows when the toolbar splits into two rows on narrow screens)
+function resize(){ cv.width=innerWidth*DPR; cv.height=(innerHeight-BARH)*DPR;
+  cv.style.width=innerWidth+'px'; cv.style.height=(innerHeight-BARH)+'px'; }
 addEventListener('resize',resize); resize();
 const lerp=(a,b,t)=>a+(b-a)*t, clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const easeIO=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2, easeOut=t=>1-Math.pow(1-t,3);
@@ -11,7 +12,7 @@ const easeIO=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2, easeOut=t=>1-Math.pow(1-t,3);
 const cam={x:0,y:0,s:1,tx:0,ty:0,ts:1}; let autoFrame=true;
 let viewOffsetX=0;                                                               // shift the main view right when the prim-decomposition panel occupies the left
 function toScreen(x,y){ return [(x-cam.x)*cam.s+cv.width/2+viewOffsetX,(y-cam.y)*cam.s+cv.height/2]; }
-function toWorldXY(sx,sy){ return [(sx*DPR-cv.width/2-viewOffsetX)/cam.s+cam.x, ((sy-52)*DPR-cv.height/2)/cam.s+cam.y]; }
+function toWorldXY(sx,sy){ return [(sx*DPR-cv.width/2-viewOffsetX)/cam.s+cam.x, ((sy-BARH)*DPR-cv.height/2)/cam.s+cam.y]; }
 
 function cellBase(p,q,r){ return [(q-p)*0.62, (r-(p+q))*0.62]; }   // 180°: low weight (h^{0,0}) at the BOTTOM, high weight at the top
 // fraction along center→target where the ray exits the rounded diamond (half-diag Hw): 0.93·Hw at a vertex, Hw on the flat side
