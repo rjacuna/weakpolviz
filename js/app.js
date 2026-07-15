@@ -499,33 +499,51 @@ function idbOpen(){ return _db?Promise.resolve(_db):new Promise((res,rej)=>{ let
 function idbGet(key){ return idbOpen().then(db=>new Promise((res,rej)=>{ const q=db.transaction('graphs').objectStore('graphs').get(key); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); })); }
 function idbPut(key,val){ return idbOpen().then(db=>new Promise((res,rej)=>{ const q=db.transaction('graphs','readwrite').objectStore('graphs').put(val,key); q.onsuccess=()=>res(); q.onerror=()=>rej(q.error); })); }
 function cachedComputeGraph(hvec){ const k=gKey(hvec); let G=graphCache.get(k); if(!G){ G=computeGraph(hvec); graphCache.set(k,G); } return G; }   // sync fallback; big graphs are pre-populated by ensureGraph()
-const progEl=document.getElementById('progress'), progTxt=document.getElementById('progtxt'), progCancelBtn=document.getElementById('progcancel');
-let progCancel=null;
-function showProgress(hvec, blocking){ if(!progEl)return; progTxt.textContent='computing '+hvec.join(',')+(blocking?' … (working — the tab may freeze briefly)':' …'); if(progCancelBtn) progCancelBtn.style.display=blocking?'none':''; progEl.classList.add('shown'); }
-function updateProgress(n){ if(progTxt) progTxt.textContent=n.toLocaleString()+' diamonds …'; }
-function hideProgress(){ if(progEl) progEl.classList.remove('shown'); progCancel=null; }
+const progEl=document.getElementById('progress');
 function capMsg(e){ return String(e).indexOf('CAP:')>=0? ('too large — aborted past '+SAFETY_CAP.toLocaleString()+' diamonds') : ('compute failed: '+e); }
-let curWorker=null;   // ensure hvec's graph is cached. anything not trivially tiny computes in a worker (animated bar + live count + cancel); if workers are unavailable (e.g. file://) it falls back to a SYNCHRONOUS compute that still shows the pop-up (painted before the block) so it is never silent. resolves true when ready, false if cancelled/failed.
+/* one visible progress bar PER h being computed. jobs keyed by gKey; input locks while more than MAX_KNOTS run at once. */
+const MAX_KNOTS=3;                  // lock the h-input while strictly more than this many h's compute concurrently
+const jobs=new Map();               // gKey -> {hvec,row,txt}  (one row = one worker in flight)
+const pending=new Map();            // gKey -> promise, so a repeated request for the same h shares one compute
+function updateInputLock(){ const el=document.getElementById('vec'); if(!el)return; const over=jobs.size>MAX_KNOTS;
+  el.disabled=over; el.classList.toggle('locked',over);
+  el.title=over?('computing '+jobs.size+' graphs — input locked until it drops to '+MAX_KNOTS):''; }
+function addJob(k,hvec){                                   // build + show this h's own progress row
+  const row=document.createElement('div'); row.className='progjob';
+  const bar=document.createElement('div'); bar.className='progbar';
+  const rr=document.createElement('div'); rr.className='progrow';
+  const txt=document.createElement('span'); txt.className='progtxt'; txt.textContent='computing '+hvec.join(',')+' …';
+  const cancel=document.createElement('button'); cancel.className='progcancel'; cancel.title='cancel'; cancel.textContent='✕';
+  rr.appendChild(txt); rr.appendChild(cancel); row.appendChild(bar); row.appendChild(rr);
+  progEl.appendChild(row); progEl.classList.add('shown');
+  const job={hvec,row,txt,cancel}; jobs.set(k,job); updateInputLock(); return job; }
+function endJob(k){ const j=jobs.get(k); if(!j)return; if(j.row.parentNode) j.row.parentNode.removeChild(j.row);
+  jobs.delete(k); if(jobs.size===0) progEl.classList.remove('shown'); updateInputLock(); }
+// ensure hvec's graph is cached. tiny ⇒ instant; else compute in a worker with its own labelled bar + live count + cancel;
+// if workers are unavailable (e.g. file://) fall back to a SYNCHRONOUS compute that still paints its row first so it is never silent.
 function ensureGraph(hvec){ const k=gKey(hvec);
   if(graphCache.has(k)) return Promise.resolve(true);
-  if(hvec.length-1<=4 && Math.max(...hvec)<=4){ try{ graphCache.set(k,computeGraph(hvec)); }catch(e){ showErr(capMsg(e)); return Promise.resolve(false); } return Promise.resolve(true); }   // trivially tiny ⇒ instant, no pop-up
-  return idbGet(k).catch(()=>null).then(stored=>{ if(stored){ graphCache.set(k,stored); return true; }
+  if(pending.has(k)) return pending.get(k);                                   // same h already computing — share it
+  if(hvec.length-1<=4 && Math.max(...hvec)<=4){ try{ graphCache.set(k,computeGraph(hvec)); }catch(e){ showErr(capMsg(e)); return Promise.resolve(false); } return Promise.resolve(true); }   // trivially tiny ⇒ instant, no bar
+  const p=idbGet(k).catch(()=>null).then(stored=>{ if(stored){ graphCache.set(k,stored); return true; }
     return new Promise(resolve=>{
-      const syncFallback=()=>{ showProgress(hvec,true); requestAnimationFrame(()=>requestAnimationFrame(()=>{   // paint the pop-up first, THEN block on the compute so it is visible
-        let G2; try{ G2=computeGraph(hvec,null,SAFETY_CAP); }catch(e){ hideProgress(); showErr(capMsg(e)); resolve(false); return; }
-        graphCache.set(k,G2); idbPut(k,G2).catch(()=>{}); hideProgress(); resolve(true); })); };
+      const job=addJob(k,hvec);
+      const syncFallback=()=>{ job.cancel.style.display='none'; job.txt.textContent='computing '+hvec.join(',')+' … (tab may freeze briefly)';
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{                 // paint the row first, THEN block on the compute so it is visible
+          let G2; try{ G2=computeGraph(hvec,null,SAFETY_CAP); }catch(e){ endJob(k); showErr(capMsg(e)); resolve(false); return; }
+          graphCache.set(k,G2); idbPut(k,G2).catch(()=>{}); endJob(k); resolve(true); })); };
       let w; try{ w=new Worker('js/gwork.js?v='+AV); }catch(e){ w=null; }
       if(!w){ syncFallback(); return; }
-      curWorker=w; let settled=false; const showT=setTimeout(()=>{ if(!settled) showProgress(hvec); }, 50);   // pop up once it's clearly taking a moment (no flash for quick ones)
-      w.onmessage=ev=>{ const d=ev.data; if(d.t==='p'){ if(!settled) showProgress(hvec); updateProgress(d.n); return; }
-        settled=true; clearTimeout(showT); try{w.terminate();}catch(_){} curWorker=null;
-        if(d.t==='ok'){ graphCache.set(k,d.G); idbPut(k,d.G).catch(()=>{}); hideProgress(); resolve(true); }
-        else { hideProgress(); showErr(d.cap?('too large — aborted past '+d.n.toLocaleString()+' diamonds'):('compute failed: '+d.m)); resolve(false); } };
-      w.onerror=()=>{ if(settled)return; settled=true; clearTimeout(showT); try{w.terminate();}catch(_){} curWorker=null; syncFallback(); };   // worker couldn't load ⇒ synchronous, still with the pop-up
-      progCancel=()=>{ if(settled)return; settled=true; clearTimeout(showT); try{w.terminate();}catch(_){} curWorker=null; hideProgress(); resolve(false); };
+      let settled=false;
+      w.onmessage=ev=>{ const d=ev.data; if(d.t==='p'){ job.txt.textContent=hvec.join(',')+' — '+d.n.toLocaleString()+' diamonds …'; return; }
+        settled=true; try{w.terminate();}catch(_){}
+        if(d.t==='ok'){ graphCache.set(k,d.G); idbPut(k,d.G).catch(()=>{}); endJob(k); resolve(true); }
+        else { endJob(k); showErr(d.cap?('too large — aborted past '+d.n.toLocaleString()+' diamonds'):('compute failed: '+d.m)); resolve(false); } };
+      w.onerror=()=>{ if(settled)return; settled=true; try{w.terminate();}catch(_){} syncFallback(); };   // worker couldn't load ⇒ synchronous, still with the row
+      job.cancel.onclick=()=>{ if(settled)return; settled=true; try{w.terminate();}catch(_){} endJob(k); resolve(false); };
       w.postMessage({hvec, cap:SAFETY_CAP});
-    }); }); }
-document.getElementById('progcancel').onclick=()=>{ if(progCancel) progCancel(); };
+    }); });
+  pending.set(k,p); p.then(()=>pending.delete(k),()=>pending.delete(k)); return p; }
 
 /*=================== validation + warning ===================*/
 const errEl=document.getElementById('err'), warnEl=document.getElementById('warn');
