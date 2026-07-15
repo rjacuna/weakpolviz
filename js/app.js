@@ -436,39 +436,67 @@ function drawPrimGrid(){ if(!ppctx)return;                                      
     ppctx.strokeStyle='rgba(143,180,230,0.55)'; ppctx.lineWidth=1.4*DPR; ppctx.beginPath(); ppctx.moveTo(l0[0],l0[1]); ppctx.lineTo(l1[0],l1[1]); ppctx.stroke();
     const dl=toS(-0.85,yD); ppctx.fillStyle='#8fb4e6'; ppctx.textAlign='right'; ppctx.textBaseline='middle'; ppctx.font='600 '+(15*DPR)+'px ui-sans-serif'; ppctx.fillText(primGridData.totalLabel,dl[0],dl[1]);
     const dp=toS(0,yD); piece(primGridData.src,dp[0],dp[1],diag); } }
-if(ppcv){ let ppDrag=false, ppLast=[0,0];                                          // pan / zoom — its own camera, independent of the main canvas
-  ppcv.addEventListener('pointerdown',e=>{ ppcv.setPointerCapture(e.pointerId); ppDrag=true; ppLast=[e.clientX,e.clientY]; });
-  ppcv.addEventListener('pointermove',e=>{ if(!ppDrag)return; ppcam.x-=(e.clientX-ppLast[0])*DPR/ppcam.s; ppcam.y-=(e.clientY-ppLast[1])*DPR/ppcam.s; ppLast=[e.clientX,e.clientY]; });
-  ppcv.addEventListener('pointerup',e=>{ ppcv.releasePointerCapture(e.pointerId); ppDrag=false; });
-  ppcv.addEventListener('pointerleave',()=>{ ppDrag=false; });
+if(ppcv){ let ppLast=[0,0]; const ppPtrs=new Map(); let ppPinch=null;               // pan / pinch-zoom (touch) / wheel-zoom (desktop) — its own camera
+  const ppInfo=()=>{ const p=[...ppPtrs.values()], a=p[0],b=p[1]; return {d:Math.hypot(a.x-b.x,a.y-b.y)||1,cx:(a.x+b.x)/2,cy:(a.y+b.y)/2}; };
+  ppcv.addEventListener('pointerdown',e=>{ ppcv.setPointerCapture(e.pointerId); ppPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ppPtrs.size>=2) ppPinch=ppInfo(); ppLast=[e.clientX,e.clientY]; });
+  ppcv.addEventListener('pointermove',e=>{ if(ppPtrs.has(e.pointerId)) ppPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ppPinch && ppPtrs.size>=2){ const ni=ppInfo(); ppcam.s=clamp(ppcam.s*(ni.d/ppPinch.d),36,360);   // two-finger pinch: zoom + pan
+      ppcam.x-=(ni.cx-ppPinch.cx)*DPR/ppcam.s; ppcam.y-=(ni.cy-ppPinch.cy)*DPR/ppcam.s; ppPinch=ni; return; }
+    if(ppPtrs.size!==1) return;                                                     // one finger / mouse-drag: pan
+    ppcam.x-=(e.clientX-ppLast[0])*DPR/ppcam.s; ppcam.y-=(e.clientY-ppLast[1])*DPR/ppcam.s; ppLast=[e.clientX,e.clientY]; });
+  const ppEnd=e=>{ ppPtrs.delete(e.pointerId); try{ppcv.releasePointerCapture(e.pointerId);}catch(_){}
+    if(ppPtrs.size<2) ppPinch=null; if(ppPtrs.size===1){ const r=[...ppPtrs.values()][0]; ppLast=[r.x,r.y]; } };
+  ppcv.addEventListener('pointerup',ppEnd); ppcv.addEventListener('pointercancel',ppEnd);
   ppcv.addEventListener('wheel',e=>{ e.preventDefault(); ppcam.s=clamp(ppcam.s*Math.exp(-e.deltaY*0.0016),36,360); },{passive:false}); }
 addEventListener('resize',()=>{ if(panelUserSized) panelW=clamp(panelW,220,Math.round(window.innerWidth*0.82)); applyPanelW(); if(ppShown) ppResize(); });
 
 /*=================== interaction ===================*/
 let dragBg=false, dragNode=null, dragWN=null, dragAB=null, last=[0,0], moved=false, hoverVid=-1, hoverWN=-1, hoverTreeUid=-1, treeHoverPileUid=-1, treeHoverMt=0;
-cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); moved=false; last=[e.clientX,e.clientY];
+const cvPtrs=new Map();          // active pointers on the main canvas (for multi-touch pinch)
+let pinch=null;                  // {d,cx,cy}: last two-finger state — pinch-zoom + two-finger pan
+function cancelCvDrags(){ dragBg=false; if(dragNode){dragNode.pin=false;dragNode=null;} if(dragWN){dragWN.pin=false;dragWN=null;}
+  if(dragAB!=null){ const q=abLay.get(dragAB); if(q)q.pin=false; dragAB=null; } cv.classList.remove('drag'); }
+function pinchInfo(){ const p=[...cvPtrs.values()], a=p[0],b=p[1]; return {d:Math.hypot(a.x-b.x,a.y-b.y)||1, cx:(a.x+b.x)/2, cy:(a.y+b.y)/2}; }
+// a tap does on touch what hover does on desktop: choose the decomposition node, replay a tree pivot, focus a vertex's edges (+ select in the graph)
+function tapFocus(cx,cy){
+  if(weakMode && weakLayout!=='tree'){ if(abMode) abHover=abHitNode(cx,cy); else hoverWN=weakHitNode(cx,cy); return; }
+  if(viz==='tree'){ hoverTreeUid=treeHitNode(cx,cy); return; }
+  if(mode==='idle'){ const h=hitNode(cx,cy); if(h){ selected=h.vid; hoverVid=h.vid; showInfo(h.vid); } else { selected=null; hoverVid=-1; document.getElementById('info').style.display='none'; } } }
+cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); cvPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(cvPtrs.size>=2){ cancelCvDrags(); pinch=pinchInfo(); autoFrame=false; return; }   // second finger ⇒ pinch (zoom + two-finger pan)
+  moved=false; last=[e.clientX,e.clientY];
   if(!weakMode&&viz!=='tree'&&mode==='idle'){ const h=hitNode(e.clientX,e.clientY); if(h){ dragNode=h; h.pin=true; autoFrame=false; return; } }
   if(weakMode&&abMode&&weakLayout!=='tree'){ const key=abHitNode(e.clientX,e.clientY); if(key!=null){ dragAB=key; const p=abLay.get(key); if(p){ p.pin=true; p.vx=p.vy=0; } autoFrame=false; return; } }  // ambient overlay vertices drag too
   if(weakMode&&!abMode&&weakLayout==='graph'){ const wi=weakHitNode(e.clientX,e.clientY); if(wi>=0){ dragWN=WN[wi]; dragWN.pin=true; autoFrame=false; return; } }  // weak graph nodes drag like the polarized graph
   dragBg=true; cv.classList.add('drag'); });
-cv.addEventListener('pointermove',e=>{ const dx=e.clientX-last[0],dy=e.clientY-last[1];
+cv.addEventListener('pointermove',e=>{ if(cvPtrs.has(e.pointerId)) cvPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch && cvPtrs.size>=2){ const ni=pinchInfo();                               // pinch: zoom about the finger midpoint, panning with it
+    const [wx,wy]=toWorldXY(pinch.cx,pinch.cy); cam.s=cam.ts=clamp(cam.s*(ni.d/pinch.d),8,220);
+    cam.x=wx-(ni.cx*DPR-cv.width/2-viewOffsetX)/cam.s; cam.y=wy-((ni.cy-52)*DPR-cv.height/2)/cam.s; cam.tx=cam.x; cam.ty=cam.y; pinch=ni; return; }
+  const dx=e.clientX-last[0],dy=e.clientY-last[1];
   if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
   if(dragNode){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); dragNode.x=wx; dragNode.y=wy; last=[e.clientX,e.clientY]; return; }
   if(dragWN){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); dragWN.x=wx; dragWN.y=wy; dragWN.vx=dragWN.vy=0; last=[e.clientX,e.clientY]; return; }
   if(dragAB!=null){ const p=abLay.get(dragAB); if(p){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); p.x=wx-abEox; p.y=wy; p.vx=p.vy=0; } last=[e.clientX,e.clientY]; return; }
   if(dragBg){ autoFrame=false; cam.x-=dx*DPR/cam.s; cam.y-=dy*DPR/cam.s; cam.tx=cam.x;cam.ty=cam.y;cam.ts=cam.s; last=[e.clientX,e.clientY]; return; }
+  if(e.pointerType==='touch') return;                                              // touch has no hover; tap drives these instead (pointerup → tapFocus)
   if(weakMode && weakLayout!=='tree'){ if(abMode) abHover=abHitNode(e.clientX,e.clientY); else hoverWN=weakHitNode(e.clientX,e.clientY); }  // hover: focus a vertex's edges (overlay hits its own layout)
   else if(viz==='tree') hoverTreeUid=treeHitNode(e.clientX,e.clientY);
   else if(mode==='idle'){ const h=hitNode(e.clientX,e.clientY); hoverVid=h?h.vid:-1; }
   else hoverVid=-1; });
-cv.addEventListener('pointerleave',()=>{ hoverVid=-1; hoverWN=-1; hoverTreeUid=-1; abHover=null; });
-cv.addEventListener('pointerup',e=>{ cv.releasePointerCapture(e.pointerId);
+cv.addEventListener('pointerleave',()=>{ if(pinch)return; hoverVid=-1; hoverWN=-1; hoverTreeUid=-1; abHover=null; });
+function cvPtrEnd(e){ cvPtrs.delete(e.pointerId); try{cv.releasePointerCapture(e.pointerId);}catch(_){}
+  if(pinch){ if(cvPtrs.size>=2) return;                                             // still pinching
+    pinch=null; if(cvPtrs.size===1){ const r=[...cvPtrs.values()][0]; last=[r.x,r.y]; moved=true; dragBg=true; cv.classList.add('drag'); }  // last finger keeps panning; not a tap
+    return; }
+  const wasTap=!moved;                                                             // unpin any grabbed node first, THEN a no-move release is a tap (select / focus)
   if(dragAB!=null){ const p=abLay.get(dragAB); if(p) p.pin=false; dragAB=null; }
   else if(dragWN){ dragWN.pin=false; dragWN=null; }
   else if(dragNode){ dragNode.pin=false; dragNode=null; }
-  else if(viz!=='tree'&&mode==='idle'&&!moved){ const h=hitNode(e.clientX,e.clientY);
-    if(h){ selected=h.vid; showInfo(h.vid); } else { selected=null; document.getElementById('info').style.display='none'; } }
-  dragBg=false; cv.classList.remove('drag'); });
+  if(wasTap) tapFocus(e.clientX,e.clientY);
+  dragBg=false; cv.classList.remove('drag'); }
+cv.addEventListener('pointerup',cvPtrEnd); cv.addEventListener('pointercancel',cvPtrEnd);
 cv.addEventListener('wheel',e=>{ e.preventDefault(); autoFrame=false;
   cam.ts=clamp(cam.s*Math.exp(-e.deltaY*0.0016),8,220); cam.s=cam.ts; },{passive:false});
 function hitNode(cx,cy){ const [wx,wy]=toWorldXY(cx,cy); let best=null,bd=1e9;
