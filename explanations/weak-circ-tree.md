@@ -1,1 +1,1 @@
-**$R_{[[k]]}^{\circ}(\underline h)$ — pure sub-tree.** The non pure vertices explode away; hover to replay a pivot.
+**$R_{[[k]]}^{\circ}(\underline h)$ — pure subtree.** Classes must be pure outside the relative box $B_{[[km1]]} = [[boxRel]]$, which contains the black box $B_{[[k]]} = [[boxK]]$. The only entries that move are those of $F^{[[k]]}$. The non pure vertices explode away; hover to replay a pivot.
