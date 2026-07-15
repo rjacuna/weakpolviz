@@ -1,1 +1,1 @@
-**Polarized relations.** Vertices are admissible diamonds; an arrow $\lozenge_i\to\ lozenge_j$ means $\lozenge_i$ degenerates to $\lozenge_j$ (i.e. $\lozenge_i \preceq \lozenge_i$). Drag to rearrange, hover a vertex to highlight its edges.
+**Polarized relations.** Vertices are admissible diamonds; an arrow $\lozenge_i\to \lozenge_j$ means $\lozenge_i$ degenerates to $\lozenge_j$ (i.e. $\lozenge_i \preceq \lozenge_i$). Drag to rearrange, hover a vertex to highlight its edges.
