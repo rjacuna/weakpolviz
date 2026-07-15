@@ -485,7 +485,7 @@ cv.addEventListener('pointermove',e=>{ if(cvPtrs.has(e.pointerId)) cvPtrs.set(e.
   else if(viz==='tree') hoverTreeUid=treeHitNode(e.clientX,e.clientY);
   else if(mode==='idle'){ const h=hitNode(e.clientX,e.clientY); hoverVid=h?h.vid:-1; }
   else hoverVid=-1; });
-cv.addEventListener('pointerleave',()=>{ if(pinch)return; hoverVid=-1; hoverWN=-1; hoverTreeUid=-1; abHover=null; });
+cv.addEventListener('pointerleave',e=>{ if(pinch||e.pointerType==='touch')return; hoverVid=-1; hoverWN=-1; hoverTreeUid=-1; abHover=null; });   // touch has no hover: a lifted finger must NOT wipe the highlight a tap just set
 function cvPtrEnd(e){ cvPtrs.delete(e.pointerId); try{cv.releasePointerCapture(e.pointerId);}catch(_){}
   if(pinch){ if(cvPtrs.size>=2) return;                                             // still pinching
     pinch=null; if(cvPtrs.size===1){ const r=[...cvPtrs.values()][0]; last=[r.x,r.y]; moved=true; dragBg=true; cv.classList.add('drag'); }  // last finger keeps panning; not a tap
