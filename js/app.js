@@ -497,8 +497,9 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   const ac=(id,on)=>{ const b=document.getElementById(id); if(b) b.classList.toggle('active',on); };
   ex(document.querySelector('.transport'), !(viz==='tree' && !weakMode && !primMode));   // play/step only in the strict tree (pol) view
   ex(document.getElementById('primbtn'), weakMode);                                       // prim blows away while weak is open
-  ex(document.getElementById('matrixbtn'), weakMode); ex(document.getElementById('decompbtn'), weakMode);   // pol-side toggles: present for pol & pol+prim, all views
-  ac('matrixbtn', matrixMode); ac('decompbtn', decompMode);
+  ex(document.getElementById('matrixbtn'), weakMode);                                     // rotate: present for pol & pol+prim, all views
+  const _dt=document.getElementById('decomptab'); if(_dt) _dt.classList.toggle('tabhide', weakMode);   // decomposition pull-tab: pol-side only (hidden while weak is open)
+  ac('matrixbtn', matrixMode); ac('decomptab', decompMode);
   ex(document.getElementById('weakctrls'), !weakMode);                                    // k / ∘ appear only with weak, left of the weak button
   ex(document.getElementById('abctrls'), !(weakMode && weakLayout!=='tree'));             // a / 𝒜 overlay buttons: flush-left, weak graph/poset only
   ac('abtn', abMode==='a'); ac('Abtn', abMode==='A'); updateABStat();                     // keep the overlay legend pillbox in sync with the view
@@ -619,7 +620,7 @@ function syncAB(){ const a=document.getElementById('abtn'), A=document.getElemen
   updateABStat(); updateHint(); }
 document.getElementById('abtn').onclick=()=>{ const was=abMode; abMode = abMode==='a'? null : 'a'; if(!was && abMode) abAnim=0; syncAB(); };   // open from off ⇒ start un-collapsed
 document.getElementById('Abtn').onclick=()=>{ const was=abMode; abMode = abMode==='A'? null : 'A'; if(!was && abMode) abAnim=0; syncAB(); };   // open straight into 𝒜 ⇒ animate the collapse
-document.getElementById('decompbtn').onclick=()=>{ decompMode=!decompMode; autoFrame=true; updateChrome(); updateHint();
+document.getElementById('decomptab').onclick=()=>{ decompMode=!decompMode; autoFrame=true; updateChrome(); updateHint();
   if(viz==='tree'&&G&&mode==='idle') frameTree(); };   // reframe the settled tree into the (now narrower / full) canvas
 document.getElementById('primbtn').onclick=()=>{ primMode=!primMode;                 // primitive cohomology; disables the play transport, keeps hover-replay
   if(primMode){ playing=false; updatePlayIcon(); finishTree(); }
