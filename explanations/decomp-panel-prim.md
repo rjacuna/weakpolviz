@@ -1,0 +1,1 @@
+**The primitive decomposition.** In **prim** mode the panel decomposes only the primitive part $P(\lozenge) = \sum_{w} P_w$: one generator $P_w$ per weight $w$, with the Lefschetz/Tate twists $(-a)$ stripped away. These are exactly the $a=0$ column of the full $\lozenge = \sum_{w}\sum_{a} P_w(-a)$.

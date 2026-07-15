@@ -241,6 +241,7 @@ function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
 // missing profiles = dashed ghosts, missing ⊑-covers = red. Maximal ⇔ no ghosts, saturated ⇔ no red.
 let abMode=null, abFramePending=false, abAnim=0;                                    // null | 'a' | 'A' ; abAnim 0→1 collapses every diamond onto its A-vector
 let abPos=new Map(), abHover=null, abHoverT=0, abEox=0;                              // overlay vertex positions (for hit-testing) + hovered vertex key + hover animation + collapse box offset
+let abLay=new Map(), abLaySig=null;                                                 // PERSISTENT, drag-editable overlay layout (honours the graphLayout menu: layered / force / radial); rebuilt when its signature changes
 function movingVec(rep,r,k){ const C=rep.slice().reverse(); const a=[]; for(let q=k;q<=r-k;q++) a.push(C[k][q]); return a; }   // F^k frontier column p=k, q∈[k,r−k]
 function drawFkGreen(cx,cy,U,r,k,col){                                              // box around the moving vector: the LEFT column j=k (a coin here FALLS down the column), rows k..r−k — green for realized, red for ghosts
   const x=cx+(k-r/2)*MW*U, y0=cy+(k-r/2-0.5)*MW*U, hh=(r-2*k+1)*MW*U;
@@ -271,19 +272,15 @@ function drawCollapseNode(m,cx,cy,U,r,k,et,hvec,AVec){
     ctx.restore(); }
   if(et>0.01) for(let i=0;i<AVec.length;i++) wTxt(colX, cy+(k+i-r/2)*MW*U, U, AVec[AVec.length-1-i], et, '#cfe0f7');   // A-vector fades in down the green column
   drawFkGreen(cx,cy,U,r,k); }
-function drawAmbientOverlay(){ if(!WG){ drawWeakMain(); return; }
-  const r=WG.r, k=WG.k, n=r-2*k, m=WG.hvec[k], U=cam.s*0.42, AP=ambientPoset(n,m);
-  if(AP.nodes.length>160){ drawWeakMain(); return; }
-  abAnim += ((abMode==='A'?1:0)-abAnim)*0.16; const et=easeIO(clamp(abAnim,0,1));   // 𝒜 view collapses each diamond onto its A-vector
-  abHoverT += ((abHover!=null?1:0)-abHoverT)*0.2;
-  const mv=rep=>movingVec(rep,r,k).join(',');
-  const repOf=new Map(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) repOf.set(mv(c.rep), c.rep); });   // realized profiles (R_k^∘) → representative matrix
-  const directE=new Set();   // R_k^∘'s DIRECT degeneration edges (moving-vector pairs). Saturation = every ⊑-comparable pair IS one of these — not merely reachable through others (R_k^∘ need not be transitively closed)
-  (WG.keptEdges||[]).forEach(([ci,cj])=>{ directE.add(mv(WG.classes[ci].rep)+'>'+mv(WG.classes[cj].rep)); });
-  const byKey=new Map(); AP.nodes.forEach(nd=>byKey.set(nd.key,nd));
-  const leq=(a,d)=>{ const Aa=byKey.get(a).A, Ad=byKey.get(d).A; for(let i=0;i<Aa.length;i++) if(Aa[i]>Ad[i]) return false; return true; };   // 𝒜's order: a ⊑ d ⟺ A_a ≤ A_d componentwise
-  const D=(r+2)*MW*1.25;
-  // LAYOUT: realized vertices sit at their EXACT tree-level positions (identical to the weak graph, so the Hodge–Tate MHS lands at the bottom); ghosts interpolate into that grid at their ambient-rank layer
+function abBuildLayout(AP, byKey, mv, D){                                               // persistent overlay positions honouring the chosen graph layout (drag-editable)
+  const lay=new Map();
+  if(graphLayout==='radial'){                                                          // concentric rings by ambient rank ΣA (root centred)
+    const rks=[...new Set(AP.nodes.map(nd=>nd.rank))].sort((a,b)=>a-b), idx={}; rks.forEach((v,i)=>idx[v]=i);
+    const ranks={}; AP.nodes.forEach(nd=>ranks[nd.key]=idx[nd.rank]);
+    const p=radialLayout(ranks,(WG.r+2)*MW*1.15);
+    AP.nodes.forEach(nd=>lay.set(nd.key,{x:p[nd.key].x,y:p[nd.key].y,pin:false,vx:0,vy:0}));
+    return lay; }
+  // layered (also the seed for force): realized vertices at their weak tree-level positions; ghosts relaxed into the grid at their ambient-rank layer
   const pos=new Map(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) pos.set(mv(c.rep), {x:WG.posC[ci].x, y:WG.posC[ci].y}); });
   const ghosts=AP.nodes.filter(nd=>!pos.has(nd.key));
   if(ghosts.length){
@@ -299,7 +296,34 @@ function drawAmbientOverlay(){ if(!WG){ drawWeakMain(); return; }
         const dx=P.x-q.x, dy=P.y-q.y, d=Math.hypot(dx,dy)+0.3; if(d<D*1.5) fx+=(dx/d)*(D*1.5-d)*0.32; }            // horizontal repulsion pushes ghosts off the realized spine onto side branches
       P.x+=fx; P.y=r2y(g.rank); }
   }
-  abPos=pos;
+  AP.nodes.forEach(nd=>{ const p=pos.get(nd.key)||{x:0,y:0}; lay.set(nd.key,{x:p.x,y:p.y,pin:false,vx:0,vy:0}); });
+  return lay; }
+function abForceStep(AP, D){ const REP=4*(D/3.6)*(D/3.6);                               // force-directed step over the ambient poset (skips pinned/dragged nodes)
+  const nodes=AP.nodes.map(nd=>abLay.get(nd.key)).filter(Boolean);
+  for(const n of nodes){ if(n.pin){ n._fx=0; n._fy=0; continue; } let fx=-n.x*0.02, fy=-n.y*0.02;
+    for(const m of nodes){ if(m===n)continue; const dx=n.x-m.x,dy=n.y-m.y,d2=dx*dx+dy*dy+1,f=REP/d2; fx+=dx*f; fy+=dy*f; }
+    n._fx=fx; n._fy=fy; }
+  for(const [f,t] of AP.covers){ const n=abLay.get(f),m=abLay.get(t); if(!n||!m)continue;
+    const dx=m.x-n.x,dy=m.y-n.y,d=Math.hypot(dx,dy)+0.01,ff=(d-D)*0.02;
+    if(!n.pin){ n._fx+=dx/d*ff; n._fy+=dy/d*ff; } if(!m.pin){ m._fx-=dx/d*ff; m._fy-=dy/d*ff; } }
+  for(const n of nodes){ if(n.pin)continue; n.vx=(n.vx+n._fx)*0.8; n.vy=(n.vy+n._fy)*0.8; n.x+=n.vx*0.1; n.y+=n.vy*0.1; } }
+function drawAmbientOverlay(){ if(!WG){ drawWeakMain(); return; }
+  const r=WG.r, k=WG.k, n=r-2*k, m=WG.hvec[k], U=cam.s*0.42, AP=ambientPoset(n,m);
+  if(AP.nodes.length>160){ drawWeakMain(); return; }
+  abAnim += ((abMode==='A'?1:0)-abAnim)*0.16; const et=easeIO(clamp(abAnim,0,1));   // 𝒜 view collapses each diamond onto its A-vector
+  abHoverT += ((abHover!=null?1:0)-abHoverT)*0.2;
+  const mv=rep=>movingVec(rep,r,k).join(',');
+  const repOf=new Map(); WG.classes.forEach((c,ci)=>{ if(WG.kept[ci]) repOf.set(mv(c.rep), c.rep); });   // realized profiles (R_k^∘) → representative matrix
+  const directE=new Set();   // R_k^∘'s DIRECT degeneration edges (moving-vector pairs). Saturation = every ⊑-comparable pair IS one of these — not merely reachable through others (R_k^∘ need not be transitively closed)
+  (WG.keptEdges||[]).forEach(([ci,cj])=>{ directE.add(mv(WG.classes[ci].rep)+'>'+mv(WG.classes[cj].rep)); });
+  const byKey=new Map(); AP.nodes.forEach(nd=>byKey.set(nd.key,nd));
+  const leq=(a,d)=>{ const Aa=byKey.get(a).A, Ad=byKey.get(d).A; for(let i=0;i<Aa.length;i++) if(Aa[i]>Ad[i]) return false; return true; };   // 𝒜's order: a ⊑ d ⟺ A_a ≤ A_d componentwise
+  const D=(r+2)*MW*1.25;
+  // LAYOUT: persistent + drag-editable, driven by the graphLayout menu. layered keeps realized vertices at their exact tree-level positions (so the Hodge–Tate MHS lands at the bottom) with ghosts relaxed into the grid; force/radial re-arrange the whole ambient poset.
+  const sig=[curVec.join(','),k,weakCirc?1:0,graphLayout,AP.nodes.length].join('|');
+  if(sig!==abLaySig){ abLay=abBuildLayout(AP,byKey,mv,D); abLaySig=sig; abFramePending=true; }
+  if(graphLayout==='force') abForceStep(AP,D);                                          // force keeps simulating; layered/radial are static until dragged
+  const pos=abLay; abPos=pos;
   if(abFramePending){ abFramePending=false; let a=1e9,b=1e9,c=-1e9,d=-1e9; for(const p of pos.values()){ a=Math.min(a,p.x);c=Math.max(c,p.x);b=Math.min(b,p.y);d=Math.max(d,p.y); }
     const mg=(r+2)*MW*1.4; a-=mg;c+=mg;b-=mg;d+=mg; const w=(c-a)||1,h=(d-b)||1, TOP=54*DPR;   // reserve a top band so the #abstat legend never covers the top vertex
     cam.ts=cam.s=clamp(Math.min(cv.width/w,(cv.height-TOP)/h)*0.9,8,110); cam.tx=cam.x=(a+c)/2; cam.ty=cam.y=(b+d)/2 - (TOP/2)/cam.s; autoFrame=false; }
@@ -360,7 +384,9 @@ function updatePrimPanel(vid){ if(!G)return;
                               : '\\Diamond\\;=\\;\\sum_{w=0}^{'+G.r+'}\\sum_{a=0}^{\\,'+G.r+'-w} P_w(-a)\\;=')
       +'<canvas id="pp-head" style="vertical-align:middle;margin-left:8px"></canvas>';
     ppHeadCv=document.getElementById('pp-head'); ppHeadR=G.r; ppHeadPrim=useP;
-    const HH=44; ppHeadCv.width=HH*DPR; ppHeadCv.height=HH*DPR; ppHeadCv.style.width=HH+'px'; ppHeadCv.style.height=HH+'px'; } }
+    const HH=44; ppHeadCv.width=HH*DPR; ppHeadCv.height=HH*DPR; ppHeadCv.style.width=HH+'px'; ppHeadCv.style.height=HH+'px'; }
+  const ex=document.getElementById('pp-expl');                                          // panel-side "what the decomposition is" — changes for pol vs pol+prim
+  if(ex) ex.innerHTML = explLoaded? renderMd(useP? (EXPL['decomp-panel-prim']||'') : (EXPL['decomp-panel']||''), {}) : ''; }
 function ppLabel(pctx,x,y,w,a){ pctx.textAlign='left'; pctx.textBaseline='alphabetic';   // "P_w(−a)" with a real subscript (a=0 is the untwisted piece P_w)
   const f1=12*DPR, f2=9*DPR; pctx.font='600 '+f1+'px ui-sans-serif'; const pw=pctx.measureText('P').width;
   pctx.font=f2+'px ui-sans-serif'; const sw=''+w, swW=pctx.measureText(sw).width;
@@ -413,15 +439,17 @@ if(ppcv){ let ppDrag=false, ppLast=[0,0];                                       
 addEventListener('resize',()=>{ if(ppShown) ppResize(); });
 
 /*=================== interaction ===================*/
-let dragBg=false, dragNode=null, dragWN=null, last=[0,0], moved=false, hoverVid=-1, hoverWN=-1, hoverTreeUid=-1, treeHoverPileUid=-1, treeHoverMt=0;
+let dragBg=false, dragNode=null, dragWN=null, dragAB=null, last=[0,0], moved=false, hoverVid=-1, hoverWN=-1, hoverTreeUid=-1, treeHoverPileUid=-1, treeHoverMt=0;
 cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); moved=false; last=[e.clientX,e.clientY];
   if(!weakMode&&viz!=='tree'&&mode==='idle'){ const h=hitNode(e.clientX,e.clientY); if(h){ dragNode=h; h.pin=true; autoFrame=false; return; } }
-  if(weakMode&&weakLayout==='graph'){ const wi=weakHitNode(e.clientX,e.clientY); if(wi>=0){ dragWN=WN[wi]; dragWN.pin=true; autoFrame=false; return; } }  // weak graph nodes drag like the polarized graph
+  if(weakMode&&abMode&&weakLayout!=='tree'){ const key=abHitNode(e.clientX,e.clientY); if(key!=null){ dragAB=key; const p=abLay.get(key); if(p){ p.pin=true; p.vx=p.vy=0; } autoFrame=false; return; } }  // ambient overlay vertices drag too
+  if(weakMode&&!abMode&&weakLayout==='graph'){ const wi=weakHitNode(e.clientX,e.clientY); if(wi>=0){ dragWN=WN[wi]; dragWN.pin=true; autoFrame=false; return; } }  // weak graph nodes drag like the polarized graph
   dragBg=true; cv.classList.add('drag'); });
 cv.addEventListener('pointermove',e=>{ const dx=e.clientX-last[0],dy=e.clientY-last[1];
   if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
   if(dragNode){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); dragNode.x=wx; dragNode.y=wy; last=[e.clientX,e.clientY]; return; }
   if(dragWN){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); dragWN.x=wx; dragWN.y=wy; dragWN.vx=dragWN.vy=0; last=[e.clientX,e.clientY]; return; }
+  if(dragAB!=null){ const p=abLay.get(dragAB); if(p){ const [wx,wy]=toWorldXY(e.clientX,e.clientY); p.x=wx-abEox; p.y=wy; p.vx=p.vy=0; } last=[e.clientX,e.clientY]; return; }
   if(dragBg){ autoFrame=false; cam.x-=dx*DPR/cam.s; cam.y-=dy*DPR/cam.s; cam.tx=cam.x;cam.ty=cam.y;cam.ts=cam.s; last=[e.clientX,e.clientY]; return; }
   if(weakMode && weakLayout!=='tree'){ if(abMode) abHover=abHitNode(e.clientX,e.clientY); else hoverWN=weakHitNode(e.clientX,e.clientY); }  // hover: focus a vertex's edges (overlay hits its own layout)
   else if(viz==='tree') hoverTreeUid=treeHitNode(e.clientX,e.clientY);
@@ -429,7 +457,8 @@ cv.addEventListener('pointermove',e=>{ const dx=e.clientX-last[0],dy=e.clientY-l
   else hoverVid=-1; });
 cv.addEventListener('pointerleave',()=>{ hoverVid=-1; hoverWN=-1; hoverTreeUid=-1; abHover=null; });
 cv.addEventListener('pointerup',e=>{ cv.releasePointerCapture(e.pointerId);
-  if(dragWN){ dragWN.pin=false; dragWN=null; }
+  if(dragAB!=null){ const p=abLay.get(dragAB); if(p) p.pin=false; dragAB=null; }
+  else if(dragWN){ dragWN.pin=false; dragWN=null; }
   else if(dragNode){ dragNode.pin=false; dragNode=null; }
   else if(viz!=='tree'&&mode==='idle'&&!moved){ const h=hitNode(e.clientX,e.clientY);
     if(h){ selected=h.vid; showInfo(h.vid); } else { selected=null; document.getElementById('info').style.display='none'; } }
@@ -603,7 +632,8 @@ const _origRun=run; run=function(v){ _origRun(v); populateWeakK(); if(weakMode) 
    Each view/mode maps to one file; dynamic bits are [[template]] vars; $…$ is KaTeX. */
 const EXPL={};                          // name -> raw markdown
 const EXPL_FILES=['tree','graph','poset','weak-circ0','weak-graph','weak-poset','weak-tree',
-                  'weak-circ-graph','weak-circ-poset','weak-circ-tree','mod-prim','mod-matrix','mod-decomp'];
+                  'weak-circ-graph','weak-circ-poset','weak-circ-tree','mod-prim','mod-matrix','mod-decomp',
+                  'decomp-panel','decomp-panel-prim'];
 let explLoaded=false;
 function loadExplanations(){ return Promise.all(EXPL_FILES.map(n=>                     // ?t= so edits show on reload without a version bump
     fetch('explanations/'+n+'.md?t='+Date.now()).then(r=>r.ok?r.text():'').catch(()=>'').then(t=>{ EXPL[n]=t; })
@@ -631,7 +661,9 @@ function updateHint(){ const el=document.getElementById('hinttext'); if(!el||!ex
   if(decompMode && !weakMode) parts.push('mod-decomp');
   if(matrixMode && !weakMode) parts.push('mod-matrix');
   if(primMode) parts.push('mod-prim');
-  parts.push(name);
+  // collapse the base explanation when a modifier owns the message: rotate/prim on the tree, or the decomposition panel (its "what it is" lives on the panel)
+  const collapseBase = (decompMode && !weakMode) || (name==='tree' && (primMode || (matrixMode && !weakMode)));
+  if(!collapseBase) parts.push(name);
   const md = parts.map(n=>EXPL[n]||'').filter(Boolean).join('\n\n') + '\n\n*Drag / wheel to navigate.*';
   el.innerHTML = renderMd(md, ctx); }
 function renderMathLabels(){ const h=document.getElementById('hlbl'), k=document.getElementById('klbl');

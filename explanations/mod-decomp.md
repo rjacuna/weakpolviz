@@ -1,1 +1,1 @@
-**Primitive decomposition.** Hover a node to unpack $\lozenge = \sum_{w,a} P_w(-a)$ in the left panel; the shaded $a=0$ column is $P(\lozenge)$.
+**KPR decomposition.** Hover a node in the graph to choose which diamond to decompose — its pieces appear in the panel on the left.

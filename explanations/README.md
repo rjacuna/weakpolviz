@@ -11,7 +11,12 @@ Weak-circ (∘ on): `weak-circ-graph.md`, `weak-circ-poset.md`, `weak-circ-tree.
 and `weak-circ0.md` for the special case k = 0.
 
 `mod-prim.md`, `mod-matrix.md`, `mod-decomp.md` are prepended when the prim / rotate /
-decomposition modes are active.
+decomposition modes are active. On the tree view, prim or rotate replaces the base tree
+blurb (they own the message); the decomposition panel likewise replaces the base blurb,
+since its "what it is" text lives on the panel.
+
+`decomp-panel.md` and `decomp-panel-prim.md` are the explanation shown *inside* the
+decomposition panel — the second is used in prim mode (pol+prim), the first otherwise.
 
 ## Formatting
 

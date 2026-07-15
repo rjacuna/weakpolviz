@@ -1,0 +1,1 @@
+**The decomposition.** Every admissible diamond splits into **KPR pieces** $\lozenge = \sum_{w}\sum_{a} P_w(-a)$: a primitive block $P_w$ of weight $w$, Tate-twisted down by $a$. Row $w$, column $a$ is the piece $P_w(-a)$; the shaded column $a=0$ collects the primitive part $P(\lozenge) = \sum_{w} P_w$.
