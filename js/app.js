@@ -533,19 +533,27 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   ac('matrixbtn', matrixMode); ac('decomptab', decompMode);
   ex(document.getElementById('weakctrls'), !weakMode);                                    // k / ∘ appear only with weak, left of the weak button
   ex(document.getElementById('abctrls'), !(weakMode && weakLayout!=='tree'));             // a / 𝒜 overlay buttons: flush-left, weak graph/poset only
-  ac('abtn', abMode==='a'); ac('Abtn', abMode==='A'); updateABStat();                     // keep the overlay legend pillbox in sync with the view
+  ac('abtn', abMode==='a'); ac('Abtn', abMode==='A'); updateABStat(); polStat();           // keep the overlay legend + pol legend in sync with the view
   const now = decompMode && !weakMode;                                                    // KPR decomposition panel: any pol view (tree/graph/poset), with or without prim
   if(now!==ppShown){ ppShown=now; const pp=document.getElementById('primpanel');
     if(now) applyPanelW();                                                                // set --ppw before showing so the panel + tab + hint line up
     if(pp) pp.classList.toggle('shown',now); document.body.classList.toggle('ppopen',now);
     if(now && G){ ppResize(); if(primStickyVid<0) primStickyVid=(hoverVid>=0?hoverVid:firstLeafVid()); primPanelVid=primStickyVid; updatePrimPanel(primStickyVid); ppFit(); } } }
+// pol-graph legend (#polstat): vertex/edge counts + the hidden "poset" trigger. Shown in the pol graph/poset views (not tree, not weak).
+function polStat(){ const el=document.getElementById('polstat'); if(!el)return;
+  if(weakMode || !G || !(viz==='graph'||viz==='poset')){ el.style.display='none'; return; }
+  const V=gnodes.length, E=G.edges.length, isP=isPoset();
+  const posetTxt = isP ? '<span class="posetlink" title="show the Hasse (poset) view">poset</span>' : 'not a poset';
+  el.innerHTML = katexStr('R(\\underline{h})')+' · '+V+' vertices, '+E+' edges · '+posetTxt+(viz==='poset'?' · <b>Hasse</b>':'');
+  el.style.display='block';
+  const pl=el.querySelector('.posetlink'); if(pl){ const go=()=>collapseTo('poset'); pl.onclick=go; pl.onmouseenter=go; } }
 function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getElementById('vizbtns'); c.innerHTML='';
   const mk=(label,fn,id)=>{ const b=document.createElement('button'); b.textContent=label; b.onclick=fn; if(id)b.id=id; c.appendChild(b); };
+  // NB: no "to poset" button — the poset (Hasse) view is reached by hovering/tapping the "poset" word in the legend (these graphs are rarely posets, so it stays out of the toolbar)
   if(weakMode){ if(weakLayout!=='graph') mk('to graph',()=>setWeakLayout('graph'));
-    if(weakLayout!=='poset') mk('to poset',()=>setWeakLayout('poset'),'toposet');
     if(weakLayout!=='tree') mk('to tree',()=>setWeakLayout('tree')); return; }
   if(viz==='tree') mk('to graph',()=>collapseTo('graph'));
-  else if(viz==='graph'){ mk('to tree',toTree); mk('to poset',()=>collapseTo('poset'),'toposet'); }
+  else if(viz==='graph'){ mk('to tree',toTree); }
   else { mk('to tree',toTree); mk('to graph',()=>collapseTo('graph')); } }
 
 /*=================== compute cache: worker + IndexedDB + progress ===================*/

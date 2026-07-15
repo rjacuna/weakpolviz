@@ -93,9 +93,13 @@ body.ppopen #decomptab{left:var(--ppw,48vw)}
 .abbtn{padding:5px 10px;font-family:ui-monospace,monospace;min-width:26px}
 #weakctrls{display:inline-flex;align-items:center;gap:7px}
 #weakctrls select{padding:5px 6px}
-#weakstat{position:fixed;left:12px;top:62px;background:#0d1626e6;border:1px solid #23324e;border-radius:8px;
+#weakstat,#polstat{position:fixed;left:12px;top:62px;background:#0d1626e6;border:1px solid #23324e;border-radius:8px;
   padding:6px 11px;font-size:12px;color:var(--dim);z-index:16;display:none}
-#weakstat b{color:#cfe0f7}
+#weakstat b,#polstat b{color:#cfe0f7}
+#polstat .katex{font-size:1.05em}
+body.ppopen #polstat{left:calc(var(--ppw,48vw) + 12px)}   /* clear the decomposition panel */
+.posetlink{color:var(--accent);cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.posetlink:hover{color:#cfe0f7;text-decoration-style:solid}
 #abstat{position:fixed;right:12px;top:62px;max-width:calc(100vw - 24px);background:#0d1626e6;border:1px solid #23324e;
   border-radius:8px;padding:6px 11px;font-size:12px;color:var(--dim);z-index:16;display:none;white-space:nowrap}
 #abstat b{color:#cfe0f7}
