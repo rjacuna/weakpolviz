@@ -90,7 +90,7 @@ let playing=false, autoplay=false, done=0, revealT=0, curReveal=-1, revealOrder=
 function fitZoom(r){ const md=Math.min(cv.width,cv.height); return clamp(1.15*md/(r+0.7), 16, 240); }
 function run(hvec){ autoFrame=true; curVec=hvec; _hasseFor=null;
   try{ G=cachedComputeGraph(hvec); }catch(e){ showErr('compute failed: '+e); return; }
-  BASIS=G.basis; selected=null; document.getElementById('info').style.display='none'; hideWarn();
+  BASIS=G.basis; selected=null; hideWarn();
   buildTree(); buildGraph();
   revealOrder=[]; for(const puid of parentsOrder){ const p=byUid[puid];
     for(const kuid of p.kids) revealOrder.push({parentUid:puid, child:byUid[kuid]}); }
@@ -462,7 +462,7 @@ function pinchInfo(){ const p=[...cvPtrs.values()], a=p[0],b=p[1]; return {d:Mat
 function tapFocus(cx,cy){
   if(weakMode && weakLayout!=='tree'){ if(abMode) abHover=abHitNode(cx,cy); else hoverWN=weakHitNode(cx,cy); return; }
   if(viz==='tree'){ hoverTreeUid=treeHitNode(cx,cy); return; }
-  if(mode==='idle'){ const h=hitNode(cx,cy); if(h){ selected=h.vid; hoverVid=h.vid; showInfo(h.vid); } else { selected=null; hoverVid=-1; document.getElementById('info').style.display='none'; } } }
+  if(mode==='idle'){ const h=hitNode(cx,cy); if(h){ selected=h.vid; hoverVid=h.vid; } else { selected=null; hoverVid=-1; } } }
 cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); cvPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(cvPtrs.size>=2){ cancelCvDrags(); pinch=pinchInfo(); autoFrame=false; return; }   // second finger ⇒ pinch (zoom + two-finger pan)
   moved=false; last=[e.clientX,e.clientY];
@@ -511,10 +511,6 @@ function abHitNode(cx,cy){ if(!WG||!abPos.size)return null; const [wx,wy]=toWorl
 function treeHitNode(cx,cy){ if(!G)return -1; const [wx,wy]=toWorldXY(cx,cy); let best=-1,bd=1e9;
   for(const n of tree){ if(!n.born)continue; const d=Math.hypot(n.x-wx,n.y-wy); if(d<bd){bd=d;best=n.uid;} }
   return bd<(G.r+1)*0.7? best:-1; }
-function showInfo(vid){ const m=G.vertices[vid], el=document.getElementById('info');
-  const od=G.edges.filter(e=>e[0]===vid).length, id=G.edges.filter(e=>e[1]===vid).length;
-  el.innerHTML='<h3>vertex '+vid+'</h3><div class="k">degenerates to '+od+' · from '+id+'</div>'+
-    '<pre style="margin:.5em 0;color:#cfe0f7">'+m.map(r=>'['+r.join(' ')+']').join('\n')+'</pre>'; el.style.display='block'; }
 
 /*=================== view-button state machine ===================*/
 function finishTree(){ done=revealOrder.length; revealT=0; curReveal=-1; playing=false; updatePlayIcon(); applyState();

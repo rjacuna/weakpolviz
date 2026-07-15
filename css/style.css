@@ -47,10 +47,6 @@ label.small{color:var(--dim);font-size:12px}
 #hinttext p:first-child{margin-top:0}
 #hinttext p:last-child{margin-bottom:0}
 #hinttext em{opacity:.6;font-style:normal}
-#info{position:fixed;right:12px;top:64px;width:210px;background:#0d1626e6;
-  border:1px solid #23324e;border-radius:10px;padding:10px 12px;display:none}
-#info h3{margin:.1em 0 .4em;font-size:13px;color:var(--sand)}
-#info .k{color:var(--dim)}
 .transport{display:inline-flex;gap:4px;align-items:center}
 .transport button{padding:5px 9px;font-size:15px;line-height:1;min-width:34px}
 .transport button.primary{min-width:40px}
