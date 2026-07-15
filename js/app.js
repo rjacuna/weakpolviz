@@ -219,11 +219,12 @@ function drawTree(){ if(!G)return; const U=cam.s*0.42;
         else { const active=(mode==='grow' && curReveal===done && revealOrder[done] && revealOrder[done].parentUid===n.uid);
           drawStatic(num,G.r,sx,sy,U,{sel:active,selColor:'#e879f9'}); } } } } }
 function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
-  const EE=(viz==='poset')? getHasse() : G.edges, Hw=(G.r+2)*0.62*0.42, Sw=boxHalfW(G.r), hov=hoverVid>=0;   // connect to diamond (or square, in matrix/prim) boundary
+  const EE=(viz==='poset')? getHasse() : G.edges, Hw=(G.r+2)*0.62*0.42, Sw=boxHalfW(G.r);   // connect to diamond (or square, in matrix/prim) boundary
+  const sel=(selected==null?-1:selected), hov=(hoverVid>=0||sel>=0);   // edges light for the SELECTED node (sticky — same as a mobile tap) and, on desktop, the hovered node
   for(const [a,b] of EE){ const n=gpos[a],m=gpos[b]; if(!n||!m)continue;
     const dx=m.x-n.x, dy=m.y-n.y, f=mtx?edgeFsq(dx,dy,Sw):edgeF(dx,dy,Hw);
     const [bx,by]=toScreen(n.x+dx*f,n.y+dy*f),[ex,ey]=toScreen(m.x-dx*f,m.y-dy*f);
-    const ang=Math.atan2(ey-by,ex-bx), inc=hov&&(a===hoverVid||b===hoverVid), dim=hov&&!inc;
+    const ang=Math.atan2(ey-by,ex-bx), inc=hov&&(a===hoverVid||b===hoverVid||a===sel||b===sel), dim=hov&&!inc;
     ctx.lineWidth=(inc?2.6:1.5)*DPR;
     ctx.strokeStyle= inc?'rgba(130,180,255,0.98)':dim?'rgba(74,104,143,0.16)':'rgba(74,104,143,0.7)';
     ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(ex,ey); ctx.stroke();
