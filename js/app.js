@@ -599,39 +599,47 @@ document.getElementById('primbtn').onclick=()=>{ primMode=!primMode;            
 const _origRun=run; run=function(v){ _origRun(v); populateWeakK(); if(weakMode) refreshWeak(); };   // keep weak view + k options in sync with h
 
 /*=================== hint + math labels ===================*/
-function updateHint(){ const el=document.getElementById('hinttext'); if(!el)return;
-  const v = weakMode? weakLayout : viz, nav=' <span style="opacity:.6">Drag / wheel to navigate.</span>'; let s;
-  if(!weakMode){
-    if(v==='graph') s='<b>Polarized relations.</b> Vertices are admissible diamonds; an arrow D&rarr;D&prime; means D degenerates to D&prime; (i.e. D&prime;&nbsp;&#8828;&nbsp;D). Drag to rearrange, hover a vertex to highlight its edges.';
-    else if(v==='poset') s='<b>Polarized order.</b> The Hasse diagram of the relation&nbsp;&#8828; &mdash; only the cover relations are drawn.';
-    else s='Each vertex is an admissible diamond; each leaf degenerates, then pivots an irreducible <b>sl&#8322;&times;sl&#8322;</b> representation (and its conjugate) onto its limit &mdash; a <b>pile</b>. Hover a node to replay its pivot; press&nbsp;&#9654; to grow the whole tree.';
-  } else if(weakCirc && weakK===0){
-    s='<b>R<sub>0</sub><sup>&#8728;</sup>(<u>h</u>) = R<sub>0</sub>(<u>h</u>).</b> At k = 0 nothing is pure-restricted, so the circ subgraph is the whole weak relation.';
-  } else {
-    const r=(curVec&&curVec.length>1)? curVec.length-1 : 2*weakK+2;              // actual box coordinates for this h
-    const bk='['+(weakK+1)+',&thinsp;'+(r-weakK-1)+']&sup2;', bp='['+weakK+',&thinsp;'+(r-weakK)+']&sup2;';
-    if(!weakCirc){
-      const Bk='the black box <b>B<sub>'+weakK+'</sub></b> = '+bk;
-      if(v==='graph') s='<b>Weak relations R<sub>'+weakK+'</sub>(<u>h</u>).</b> Vertices are classes of diamonds identified once they agree outside '+Bk+'; edges are the induced relation. Drag nodes, hover to focus edges.';
-      else if(v==='poset') s='<b>Weak order R<sub>'+weakK+'</sub>(<u>h</u>).</b> Hasse diagram of the order on classes modulo '+Bk+' (shown when it is a poset).';
-      else s='<b>Weak tree R<sub>'+weakK+'</sub>(<u>h</u>).</b> Each vertex is a class modulo '+Bk+', drawn as a matrix box; the entry on the box diagonal is forced by the column sums (column p totals h<sup>p</sup>). Hover to replay the pivot between two representatives.';
-    } else {
-      const core=' Classes must be <b>pure outside</b> the shaded <b>relative box B<sub>'+(weakK-1)+'</sub></b> = '+bp+', which contains the black box <b>B<sub>'+weakK+'</sub></b> = '+bk+'. The only entries that move are those of <b>F<sup>'+weakK+'</sup></b> &mdash; the ring inside the relative box but outside the black box.';
-      if(v==='graph') s='<b>R<sub>'+weakK+'</sub><sup>&#8728;</sup>(<u>h</u>) &mdash; circ subgraph.</b>'+core+' Drag nodes, hover to focus edges.';
-      else if(v==='poset') s='<b>R<sub>'+weakK+'</sub><sup>&#8728;</sup>(<u>h</u>) &mdash; circ subposet.</b>'+core+' Hasse diagram; cover relations only.';
-      else s='<b>R<sub>'+weakK+'</sub><sup>&#8728;</sup>(<u>h</u>) &mdash; circ sub-tree.</b>'+core+' The rest explode away; hover to replay a pivot.';
-    }
-  }
-  if(primMode) s='<b style="color:#8fb4e6">Primitive cohomology.</b> Nodes show their primitive Hodge numbers P<sup>p,q</sup> = h<sup>p,q</sup> &minus; h<sup>p&minus;1,q&minus;1</sup> (zero above the middle weight). '+s;
-  if(matrixMode && !weakMode) s='<b style="color:#8fb4e6">Rotated view.</b> Every node is rotated into its upright weight matrix h<sup>p,q</sup>, without the box. '+s;
-  if(decompMode && !weakMode) s='<b style="color:#8fb4e6">KPR decomposition.</b> Hover a node to unpack ◇ = &Sigma;<sub>w,a</sub> P<sub>w</sub>(&minus;a) in the left panel; the shaded a = 0 column is P(◇). '+s;
-  el.innerHTML = s + nav; }
+/* Hint text lives in editable Markdown files under explanations/ (see explanations/README.md).
+   Each view/mode maps to one file; dynamic bits are [[template]] vars; $…$ is KaTeX. */
+const EXPL={};                          // name -> raw markdown
+const EXPL_FILES=['tree','graph','poset','weak-circ0','weak-graph','weak-poset','weak-tree',
+                  'weak-circ-graph','weak-circ-poset','weak-circ-tree','mod-prim','mod-matrix','mod-decomp'];
+let explLoaded=false;
+function loadExplanations(){ return Promise.all(EXPL_FILES.map(n=>                     // ?t= so edits show on reload without a version bump
+    fetch('explanations/'+n+'.md?t='+Date.now()).then(r=>r.ok?r.text():'').catch(()=>'').then(t=>{ EXPL[n]=t; })
+  )).then(()=>{ explLoaded=true; updateHint(); }); }
+function renderMd(md, ctx){                                                             // [[var]] → ctx, then Markdown, with $…$ math protected from marked and rendered by KaTeX
+  let s=md.replace(/\[\[(\w+)\]\]/g,(m,k)=> (ctx && k in ctx)? ctx[k] : m);
+  const math=[];
+  s=s.replace(/\$\$([\s\S]+?)\$\$/g,(m,x)=>{ math.push({d:true,x:x}); return 'MJXMATH'+(math.length-1)+'END'; });
+  s=s.replace(/\$([^\$\n]+?)\$/g,(m,x)=>{ math.push({d:false,x:x}); return 'MJXMATH'+(math.length-1)+'END'; });
+  let html=window.marked? marked.parse(s) : ('<p>'+s.replace(/\n{2,}/g,'</p><p>')+'</p>');
+  return html.replace(/MJXMATH(\d+)END/g,(m,i)=>{ const it=math[+i]; if(!it) return m;
+    if(window.katex){ try{ return katex.renderToString(it.x,{throwOnError:false,displayMode:it.d}); }catch(e){ return it.x; } }
+    return it.x; }); }
+function updateHint(){ const el=document.getElementById('hinttext'); if(!el||!explLoaded)return;
+  const v = weakMode? weakLayout : viz;
+  let name;
+  if(!weakMode) name=(v==='graph')?'graph':(v==='poset')?'poset':'tree';
+  else if(weakCirc && weakK===0) name='weak-circ0';
+  else if(!weakCirc) name=(v==='graph')?'weak-graph':(v==='poset')?'weak-poset':'weak-tree';
+  else name=(v==='graph')?'weak-circ-graph':(v==='poset')?'weak-circ-poset':'weak-circ-tree';
+  const r=(curVec&&curVec.length>1)? curVec.length-1 : 2*weakK+2;                        // actual box coordinates for this h
+  const ctx={ k:weakK, km1:weakK-1, k1:weakK+1, r:r,
+    boxK:'['+(weakK+1)+',\\,'+(r-weakK-1)+']^2', boxRel:'['+weakK+',\\,'+(r-weakK)+']^2' };
+  const parts=[];
+  if(decompMode && !weakMode) parts.push('mod-decomp');
+  if(matrixMode && !weakMode) parts.push('mod-matrix');
+  if(primMode) parts.push('mod-prim');
+  parts.push(name);
+  const md = parts.map(n=>EXPL[n]||'').filter(Boolean).join('\n\n') + '\n\n*Drag / wheel to navigate.*';
+  el.innerHTML = renderMd(md, ctx); }
 function renderMathLabels(){ const h=document.getElementById('hlbl'), k=document.getElementById('klbl');
   if(window.katex){ if(h) h.innerHTML=katex.renderToString('\\underline{h}\\;=',{throwOnError:false}); if(k) k.innerHTML=katex.renderToString('k\\;=',{throwOnError:false}); }
   else { if(h) h.innerHTML='<u>h</u>&nbsp;='; if(k) k.textContent='k ='; } }
 document.getElementById('hinthide').onclick=()=>{ document.getElementById('hint').style.display='none'; document.getElementById('hintshow').style.display='block'; };
 document.getElementById('hintshow').onclick=()=>{ document.getElementById('hint').style.display=''; document.getElementById('hintshow').style.display='none'; };
-renderMathLabels(); updateHint(); window.addEventListener('load', renderMathLabels);   // KaTeX loads deferred — re-render once it's ready
+renderMathLabels(); loadExplanations(); window.addEventListener('load', ()=>{ renderMathLabels(); updateHint(); });   // KaTeX/marked load deferred — re-render once ready
 
 /*=================== boot ===================*/
 requestAnimationFrame(frame);

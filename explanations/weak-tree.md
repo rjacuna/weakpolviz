@@ -1,0 +1,1 @@
+**Weak tree $R_{[[k]]}(\underline h)$.** Each vertex is a class modulo the black box $B_{[[k]]} = [[boxK]]$, drawn as a matrix box; the entry on the box diagonal is forced by the column sums (column $p$ totals $h^p$). Hover to replay the pivot between two representatives.

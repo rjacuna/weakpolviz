@@ -1,0 +1,1 @@
+**Weak relations $R_{[[k]]}(\underline h)$.** Vertices are classes of diamonds identified once they agree outside the black box $B_{[[k]]} = [[boxK]]$; edges are the induced relation. Drag nodes, hover to focus edges.

@@ -1,0 +1,1 @@
+**$R_{[[k]]}^{\circ}(\underline h)$ — circ subgraph.** Classes must be **pure outside** the shaded relative box $B_{[[km1]]} = [[boxRel]]$, which contains the black box $B_{[[k]]} = [[boxK]]$. The only entries that move are those of $F^{[[k]]}$ — the ring inside the relative box but outside the black box. Drag nodes, hover to focus edges.

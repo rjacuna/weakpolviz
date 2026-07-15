@@ -1,0 +1,1 @@
+Each vertex is an admissible diamond; each leaf degenerates, then pivots an irreducible $\mathfrak{sl}_2\times\mathfrak{sl}_2$ representation (and its conjugate) onto its limit — a **pile**. Hover a node to replay its pivot; press ▶ to grow the whole tree.

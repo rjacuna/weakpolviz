@@ -42,6 +42,10 @@ label.small{color:var(--dim);font-size:12px}
 #hintshow{position:fixed;left:12px;bottom:12px;display:none;width:26px;height:26px;padding:0;
   font-weight:700;color:var(--dim);background:#0d1626cc;border:1px solid #23324e;border-radius:8px;z-index:12}
 #hint .katex{font-size:1em}
+#hinttext p{margin:.4em 0}
+#hinttext p:first-child{margin-top:0}
+#hinttext p:last-child{margin-bottom:0}
+#hinttext em{opacity:.6;font-style:normal}
 #info{position:fixed;right:12px;top:64px;width:210px;background:#0d1626e6;
   border:1px solid #23324e;border-radius:10px;padding:10px 12px;display:none}
 #info h3{margin:.1em 0 .4em;font-size:13px;color:var(--sand)}
