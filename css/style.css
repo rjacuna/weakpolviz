@@ -82,16 +82,17 @@ label.small{color:var(--dim);font-size:12px}
 #weakstat .katex{font-size:1.05em}
 #weakbtn.active,#primbtn.active,#matrixbtn.active,.abbtn.active{background:#1d3a6b;border-color:#2f5aa0;color:#cfe0f7}
 /* decomposition pull-tab: a vertical journal-separator tab docked to the left edge; rides the panel's right edge when open */
-#decomptab{position:fixed;top:50%;left:0;transform:translateY(-50%);z-index:14;
+#decomptab{position:fixed;top:60px;left:0;z-index:14;
   writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;
-  padding:16px 8px;cursor:pointer;font-size:13px;letter-spacing:.6px;user-select:none;
+  padding:16px 8px;cursor:grab;font-size:13px;letter-spacing:.6px;user-select:none;touch-action:none;
   color:var(--dim);background:linear-gradient(90deg,#182338,#101828);
   border:1px solid #24314b;border-left:none;border-radius:0 10px 10px 0;box-shadow:2px 2px 12px #0006;
-  transition:left .34s ease, color .18s, background .18s, border-color .18s}
+  transition:color .18s, background .18s, border-color .18s}   /* NO left-transition: the tab tracks the panel edge in lockstep */
 #decomptab:hover{border-color:var(--accent);color:var(--ink)}
+#decomptab:active{cursor:ew-resize}
 #decomptab.active{background:#1d3a6b;border-color:#2f5aa0;color:#cfe0f7}
 #decomptab.tabhide{display:none}
-body.ppopen #decomptab{left:48vw}
+body.ppopen #decomptab{left:var(--ppw,48vw)}
 .abbtn{padding:5px 10px;font-family:ui-monospace,monospace;min-width:26px}
 #weakctrls{display:inline-flex;align-items:center;gap:7px}
 #weakctrls select{padding:5px 6px}
@@ -105,7 +106,7 @@ body.ppopen #decomptab{left:48vw}
 #abstat .bad{color:var(--red)}
 #abstat .katex{font-size:1.05em;color:#cfe0f7}
 /* primitive-decomposition panel: pannable grid of the KPR pieces P_w(-a) */
-#primpanel{position:fixed;left:0;top:52px;width:48vw;height:calc(100vh - 52px);z-index:13;
+#primpanel{position:fixed;left:0;top:52px;width:var(--ppw,48vw);height:calc(100vh - 52px);z-index:13;
   background:#0b1322;border-right:1px solid #23324e;display:none;flex-direction:column}
 #primpanel.shown{display:flex}
 #pp-title{padding:11px 16px 8px;color:var(--dim);font-size:14px;line-height:1.5;border-bottom:1px solid #17243c}
@@ -120,5 +121,5 @@ body.ppopen #decomptab{left:48vw}
 #pp-expl p:first-child{margin-top:0}
 #pp-expl p:last-child{margin-bottom:0}
 /* decomposition panel open: keep the graph-side hint visible, moved over the graph (right of the panel) */
-body.ppopen #hint{left:calc(48vw + 12px);max-width:calc(52vw - 24px)}
-body.ppopen #hintshow{left:calc(48vw + 12px)}
+body.ppopen #hint{left:calc(var(--ppw,48vw) + 12px);max-width:calc(100vw - var(--ppw,48vw) - 24px)}
+body.ppopen #hintshow{left:calc(var(--ppw,48vw) + 12px)}

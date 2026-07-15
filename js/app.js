@@ -143,7 +143,7 @@ function stepCollapse(dt){ collapseT+=dt*speed/950; const tt=clamp(collapseT,0,1
     renderVizButtons(); } }
 function frameGraph(){ if(!gnodes.length)return;
   let a=1e9,b=1e9,c=-1e9,d=-1e9; for(const n of gnodes){ a=Math.min(a,n.x);c=Math.max(c,n.x);b=Math.min(b,n.y);d=Math.max(d,n.y);}
-  const w=(c-a)+6,h=(d-b)+6, availW=ppShown? cv.width*0.5 : cv.width;               // the decomposition panel eats the left half
+  const w=(c-a)+6,h=(d-b)+6, availW=cv.width*(1-ppFrac());                          // the decomposition panel eats its (resizable) share on the left
   cam.tx=(a+c)/2; cam.ty=(b+d)/2; cam.ts=clamp(Math.min(availW/w,cv.height/h)*0.9,22,70); }
 function toTree(){ tree.forEach(n=>{ n.born=true; n.mt=1; n.state='done'; n.pile=null; n._done=true; n._sx=n.x; n._sy=n.y; });
   viz='tree'; mode='expand'; expandT=0; renderVizButtons(); autoFrame=false; }
@@ -152,13 +152,13 @@ function stepExpand(dt){ expandT+=dt*speed/900; const tt=clamp(expandT,0,1);
   frameTree(); if(tt>=1) mode='idle'; }
 function frameTree(){ let a=1e9,b=1e9,c=-1e9,d=-1e9;
   for(const n of tree){ if(!n.born)continue; a=Math.min(a,n.tx);c=Math.max(c,n.tx);b=Math.min(b,n.ty);d=Math.max(d,n.ty); }
-  const w=(c-a)+4,h=(d-b)+4, availW=ppShown? cv.width*0.5 : cv.width; cam.tx=(a+c)/2; cam.ty=(b+d)/2;   // decomposition panel eats the left half
+  const w=(c-a)+4,h=(d-b)+4, availW=cv.width*(1-ppFrac()); cam.tx=(a+c)/2; cam.ty=(b+d)/2;   // decomposition panel eats its (resizable) share on the left
   cam.ts=clamp(Math.min(availW/w,cv.height/h)*0.9,10,fitZoom(G.r)); }
 
 /*=================== render loop ===================*/
 function frame(now){ const dt=Math.min(40,now-(frame._p||now)); frame._p=now;
   cam.x=lerp(cam.x,cam.tx,0.08); cam.y=lerp(cam.y,cam.ty,0.08); cam.s=lerp(cam.s,cam.ts,0.08);
-  viewOffsetX=lerp(viewOffsetX, ppShown? cv.width*0.24 : 0, 0.14);               // slide the main view right to clear the decomposition panel
+  viewOffsetX=lerp(viewOffsetX, cv.width*ppFrac()/2, 0.14);                       // slide the main view right to clear the (resizable) decomposition panel
   ctx.clearRect(0,0,cv.width,cv.height);
   if((weakMode || weakClosing) && weakLayout!=='tree'){ stepWeak(dt); if(abMode&&weakMode&&!weakClosing) drawAmbientOverlay(); else drawWeakMain(); requestAnimationFrame(frame); return; }   // weak tree falls through to the tree renderer
   if(mode==='grow') stepGrow(dt);
@@ -367,6 +367,12 @@ function updateABStat(){ const el=document.getElementById('abstat'); if(!el)retu
 // A pannable "infinite canvas" on the left: rows = primitive weight w, columns = Tate twist a; the cells sum to the focused diamond.
 const ppcv=document.getElementById('ppcanvas'), ppctx=ppcv?ppcv.getContext('2d'):null;
 let ppcam={x:-0.85,y:-1.05,s:150}, primGridData=null, primPanelVid=-1, ppShown=false, ppHeadCv=null, ppHeadR=-1, ppHeadPrim=null, primStickyVid=-1;
+let panelW=0, panelUserSized=false;                                                 // decomposition panel width in px (0 ⇒ default 48vw); the pull-tab drags it
+function ppW(){ return panelW>0? panelW : Math.round(window.innerWidth*0.48); }
+function ppFrac(){ return ppShown? clamp(ppW()/window.innerWidth,0.12,0.85) : 0; }   // fraction of the viewport the panel eats (0 when closed)
+function applyPanelW(){ document.documentElement.style.setProperty('--ppw', ppW()+'px'); }
+function setPanelW(w){ panelW=clamp(Math.round(w),220,Math.round(window.innerWidth*0.82)); panelUserSized=true; applyPanelW();
+  if(ppShown){ ppResize(); ppFit(); } autoFrame=true; if(viz==='tree'&&G&&mode==='idle') frameTree(); }
 function ppResize(){ if(!ppcv)return; const R=ppcv.getBoundingClientRect(); ppcv.width=Math.max(1,R.width*DPR); ppcv.height=Math.max(1,R.height*DPR); }
 function ppFit(){ if(!ppcv||!primGridData)return; const W=ppcv.width;              // wide Σ column (holds the header) + gap + the a-columns
   ppcam.s=clamp((W-130*DPR)/(primGridData.maxCol+3.6), 60, 190);                  // size to the columns (label-readable); tall tables pan vertically
@@ -436,7 +442,7 @@ if(ppcv){ let ppDrag=false, ppLast=[0,0];                                       
   ppcv.addEventListener('pointerup',e=>{ ppcv.releasePointerCapture(e.pointerId); ppDrag=false; });
   ppcv.addEventListener('pointerleave',()=>{ ppDrag=false; });
   ppcv.addEventListener('wheel',e=>{ e.preventDefault(); ppcam.s=clamp(ppcam.s*Math.exp(-e.deltaY*0.0016),36,360); },{passive:false}); }
-addEventListener('resize',()=>{ if(ppShown) ppResize(); });
+addEventListener('resize',()=>{ if(panelUserSized) panelW=clamp(panelW,220,Math.round(window.innerWidth*0.82)); applyPanelW(); if(ppShown) ppResize(); });
 
 /*=================== interaction ===================*/
 let dragBg=false, dragNode=null, dragWN=null, dragAB=null, last=[0,0], moved=false, hoverVid=-1, hoverWN=-1, hoverTreeUid=-1, treeHoverPileUid=-1, treeHoverMt=0;
@@ -505,6 +511,7 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   ac('abtn', abMode==='a'); ac('Abtn', abMode==='A'); updateABStat();                     // keep the overlay legend pillbox in sync with the view
   const now = decompMode && !weakMode;                                                    // KPR decomposition panel: any pol view (tree/graph/poset), with or without prim
   if(now!==ppShown){ ppShown=now; const pp=document.getElementById('primpanel');
+    if(now) applyPanelW();                                                                // set --ppw before showing so the panel + tab + hint line up
     if(pp) pp.classList.toggle('shown',now); document.body.classList.toggle('ppopen',now);
     if(now && G){ ppResize(); if(primStickyVid<0) primStickyVid=(hoverVid>=0?hoverVid:firstLeafVid()); primPanelVid=primStickyVid; updatePrimPanel(primStickyVid); ppFit(); } } }
 function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getElementById('vizbtns'); c.innerHTML='';
@@ -620,8 +627,14 @@ function syncAB(){ const a=document.getElementById('abtn'), A=document.getElemen
   updateABStat(); updateHint(); }
 document.getElementById('abtn').onclick=()=>{ const was=abMode; abMode = abMode==='a'? null : 'a'; if(!was && abMode) abAnim=0; syncAB(); };   // open from off ⇒ start un-collapsed
 document.getElementById('Abtn').onclick=()=>{ const was=abMode; abMode = abMode==='A'? null : 'A'; if(!was && abMode) abAnim=0; syncAB(); };   // open straight into 𝒜 ⇒ animate the collapse
-document.getElementById('decomptab').onclick=()=>{ decompMode=!decompMode; autoFrame=true; updateChrome(); updateHint();
-  if(viz==='tree'&&G&&mode==='idle') frameTree(); };   // reframe the settled tree into the (now narrower / full) canvas
+(function(){ const tab=document.getElementById('decomptab'); let down=false, sx=0, sw=0, movedT=false;   // pull-tab: click toggles the panel, drag resizes it
+  const toggle=()=>{ decompMode=!decompMode; autoFrame=true; updateChrome(); updateHint(); if(viz==='tree'&&G&&mode==='idle') frameTree(); };
+  tab.addEventListener('pointerdown',e=>{ down=true; movedT=false; sx=e.clientX; sw=decompMode? ppW() : 0; try{tab.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
+  tab.addEventListener('pointermove',e=>{ if(!down)return; const dx=e.clientX-sx; if(Math.abs(dx)>4) movedT=true;
+    if(movedT){ if(!decompMode && dx>4){ decompMode=true; updateChrome(); updateHint(); }   // pull it open, then size to the drag
+      if(decompMode) setPanelW(sw+dx); } });
+  const end=e=>{ if(!down)return; down=false; try{tab.releasePointerCapture(e.pointerId);}catch(_){} if(!movedT) toggle(); };   // a clean click (no drag) toggles
+  tab.addEventListener('pointerup',end); tab.addEventListener('pointercancel',end); })();
 document.getElementById('primbtn').onclick=()=>{ primMode=!primMode;                 // primitive cohomology; disables the play transport, keeps hover-replay
   if(primMode){ playing=false; updatePlayIcon(); finishTree(); }
   primPanelVid=-1;                                                                   // force the decomposition panel to recompute (◇ vs P(◇)) for the same focused node
