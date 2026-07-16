@@ -10,15 +10,19 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
 #bar b{position:absolute;left:50%;transform:translateX(-50%);color:var(--sand);font-weight:700;letter-spacing:.3px;white-space:nowrap;pointer-events:none}   /* centered title, out of flow so it never crowds the button groups */
 #bar button{white-space:nowrap}
 #bar > button, #bar .transport, #vizbtns, #weakctrls{flex:0 0 auto}   /* keep labels intact; only the explode animation collapses width */
-#barbreak{display:none}
+#barbreak,#barspaceL,#barspaceR{display:none}
+#menubtn{order:-1}   /* hamburger lives in the far-left corner in every view (single row and split) */
 @media (max-width:1180px){ #bar b{display:none} }   /* narrow: drop the centered title so the button groups have room */
-/* two-row split (JS toggles body.barsplit when the single row overflows): action buttons up top, h-input (left) + weak controls (right) below */
+/* two-row split (JS toggles body.barsplit when the single row overflows):
+   row 1 = ☰ + the mode buttons; row 2 = h-input + play controls, centered by flex:1 spacers on each side */
 body.barsplit #bar{height:auto;flex-wrap:wrap;row-gap:5px;padding-top:5px;padding-bottom:5px;align-content:center}
 body.barsplit #barbreak{display:block;flex-basis:100%;width:100%;height:0;margin:0;order:20}
+body.barsplit #barspaceL,body.barsplit #barspaceR{display:block;flex:1 1 0;min-width:0}   /* ID selector to beat the base #barspaceL{display:none} */
 body.barsplit #rspacer{display:none}
-body.barsplit .transport{order:1} body.barsplit #vizbtns{order:2} body.barsplit #abctrls{order:3}
-body.barsplit #matrixbtn{order:4} body.barsplit #weakbtn{order:5} body.barsplit #primbtn{order:6} body.barsplit #menubtn{order:7}
-body.barsplit #hlbl{order:21} body.barsplit #vec{order:22} body.barsplit #weakctrls{order:24;margin-left:auto}
+body.barsplit #vizbtns{order:2} body.barsplit #abctrls{order:3}
+body.barsplit #matrixbtn{order:4} body.barsplit #weakbtn{order:5} body.barsplit #primbtn{order:6}
+body.barsplit #barspaceL{order:21} body.barsplit #hlbl{order:22} body.barsplit #vec{order:23}
+body.barsplit .transport{order:24} body.barsplit #weakctrls{order:25} body.barsplit #barspaceR{order:26}
 select,input,button{background:var(--panel);color:var(--ink);border:1px solid #2b3a58;
   border-radius:8px;padding:6px 10px;font:inherit}
 button{cursor:pointer}button:hover{border-color:var(--accent)}

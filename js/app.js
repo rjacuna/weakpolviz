@@ -556,11 +556,9 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
 // pol-graph legend (#polstat): vertex/edge counts + the hidden "poset" trigger. Shown in the pol graph/poset views (not tree, not weak).
 function polStat(){ const el=document.getElementById('polstat'); if(!el)return;
   if(weakMode || !G || !(viz==='graph'||viz==='poset')){ el.style.display='none'; return; }
-  const V=gnodes.length, E=G.edges.length, isP=isPoset();
-  const posetTxt = isP ? '<span class="posetlink" title="show the Hasse (poset) view">poset</span>' : 'not a poset';
-  el.innerHTML = katexStr('R(\\underline{h})')+' · '+V+' vertices, '+E+' edges · '+posetTxt+(viz==='poset'?' · <b>Hasse</b>':'');
-  el.style.display='block';
-  const pl=el.querySelector('.posetlink'); if(pl){ const go=()=>collapseTo('poset'); pl.onclick=go; pl.onmouseenter=go; } }
+  const V=gnodes.length, E=G.edges.length, isP=isPoset();   // static text — poset view is disconnected (collapseTo('poset') kept but no longer wired)
+  el.innerHTML = katexStr('R(\\underline{h})')+' · '+V+' vertices, '+E+' edges · '+(isP?'poset':'not a poset');
+  el.style.display='block'; }
 function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getElementById('vizbtns'); c.innerHTML='';
   const mk=(label,fn,id)=>{ const b=document.createElement('button'); b.textContent=label; b.onclick=fn; if(id)b.id=id; c.appendChild(b); };
   // NB: no "to poset" button — the poset (Hasse) view is reached by hovering/tapping the "poset" word in the legend (these graphs are rarely posets, so it stays out of the toolbar)
@@ -661,8 +659,7 @@ document.getElementById('speed').oninput=e=>{ speed=+e.target.value; };
 document.getElementById('graphlayout').onchange=e=>{ graphLayout=e.target.value; autoFrame=true; };   // applies to all graph views (not poset)
 document.getElementById('graphlayout').value=graphLayout;   // keep the select in sync with the default (guards against browser form restoration)
 document.getElementById('tgl-autoplay').onchange=e=>{ autoplay=e.target.checked; };
-document.getElementById('tgl-graph').onchange=e=>{ autoGraph=e.target.checked; if(autoGraph){ document.getElementById('tgl-poset').checked=false; autoPoset=false; } };
-document.getElementById('tgl-poset').onchange=e=>{ autoPoset=e.target.checked; if(autoPoset){ document.getElementById('tgl-graph').checked=false; autoGraph=false; } };
+document.getElementById('tgl-graph').onchange=e=>{ autoGraph=e.target.checked; };   // auto→poset toggle removed (poset feature disconnected); onGrowComplete's autoPoset branch stays dead since autoPoset can never be set true
 document.getElementById('matrixbtn').onclick=()=>{ matrixMode=!matrixMode; autoFrame=true; updateChrome(); updateHint(); };   // upright h-matrix, no box (pol & pol+prim, all views)
 function syncAB(){ const a=document.getElementById('abtn'), A=document.getElementById('Abtn');   // ambient-poset overlay on the weak-circ graph
   if(a) a.classList.toggle('active',abMode==='a'); if(A) A.classList.toggle('active',abMode==='A');

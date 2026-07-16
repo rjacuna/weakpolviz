@@ -145,13 +145,9 @@ function updateWeakStat(){ const el=document.getElementById('weakstat'); if(!el)
   const alive=weakCirc? WG.kept.filter(Boolean).length : WG.classes.length;
   const aliveE=weakCirc? WG.edges.filter(([a,b])=>WG.kept[a]&&WG.kept[b]).length : WG.edges.length;
   const name='R'+(weakCirc?'^{\\circ}':'')+'_{'+WG.k+'}(\\underline{h})';
-  const posetTxt = wActiveIsPoset()
-    ? '<span class="posetlink" title="show the Hasse (poset) view">poset</span>'   // the hidden trigger: hover (desktop) / tap (mobile) switches to the poset view
-    : 'not a poset';
-  let html=katexStr(name)+' · '+alive+' classes, '+aliveE+' edges · '+posetTxt;
+  let html=katexStr(name)+' · '+alive+' classes, '+aliveE+' edges · '+(wActiveIsPoset()?'poset':'not a poset');   // static text — poset view is disconnected (setWeakLayout('poset') kept but no longer wired)
   if(WG.k===0) html+=' · '+katexStr('R_0 = R^{\\circ}_0');
-  el.innerHTML=html; el.style.display='block';
-  const pl=el.querySelector('.posetlink'); if(pl){ const go=()=>setWeakLayout('poset'); pl.onclick=go; pl.onmouseenter=go; } }
+  el.innerHTML=html; el.style.display='block'; }
 function openWeak(){ WG=computeWeak(curVec,weakK); if(!WG)return; buildWN();
   weakMode=true; weakClosing=false; weakTgt=1; autoFrame=true;
   primMode=false; document.getElementById('primbtn').classList.remove('active');   // weak takes over; the prim button blows away
