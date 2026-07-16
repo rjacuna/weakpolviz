@@ -12,6 +12,10 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
 #bar > button, #bar .transport, #vizbtns, #weakctrls{flex:0 0 auto}   /* keep labels intact; only the explode animation collapses width */
 #barbreak{display:none}
 #menubtn{order:-1}   /* hamburger lives in the far-left corner in every view (single row and split) */
+/* single-row placement mirrors the split one: ☰ + h-input flushed left; play controls, k/∘ and weak flushed right
+   (via #rspacer's auto margin). Keeping the play controls out of the left group is also what stops it reaching the centered title. */
+#hlbl{order:1} #vec{order:2} #vizbtns{order:3} #abctrls{order:4} #matrixbtn{order:5}
+#rspacer{order:6} .transport{order:7} #weakctrls{order:8} #weakbtn{order:9}
 @media (max-width:1180px){ #bar b{display:none} }   /* narrow: drop the centered title so the button groups have room */
 /* two-row split (JS toggles body.barsplit when the single row overflows):
    row 1 = ☰ + mode buttons, weak (+ its k/∘ controls) flushed right;  row 2 = h-input flushed left, play controls flushed right */
