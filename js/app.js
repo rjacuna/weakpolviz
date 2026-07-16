@@ -457,6 +457,7 @@ addEventListener('orientationchange',()=>setTimeout(fitBar,120));
 let _fitting=false;
 function fitBar(){ if(_fitting)return; _fitting=true;
   const bar=document.getElementById('bar');
+  if(bar.clientWidth<=0){ _fitting=false; return; }   // not laid out yet (hidden/zero-size tab): any measurement here is nonsense — leave BARH alone until a real resize
   document.body.classList.remove('barsplit');   // measure the single-row width first
   const overflow = bar.scrollWidth > bar.clientWidth + 2;
   if(overflow) document.body.classList.add('barsplit');
