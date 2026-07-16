@@ -45,13 +45,14 @@ function intVectors(sum,parts){ const res=[], cur=new Array(parts).fill(0);
   (function rec(pos,rem){ if(pos===parts-1){ cur[pos]=rem; res.push(cur.slice()); return; }
     for(let v=0;v<=rem;v++){ cur[pos]=v; rec(pos+1,rem-v); } })(0,sum); return res; }
 function hasNeg(M){ for(let i=0;i<M.length;i++){ const row=M[i]; for(let j=0;j<row.length;j++) if(row[j]<0) return true; } return false; }
-// Pruned DFS over coin-vectors P: subtract L-strings one at a time; the moment the remainder goes
-// negative, abandon the branch. Any valid degeneration has M−ΣP·S a diagram (so ≥0), and since we
-// only subtract (S≥0) every partial remainder is ≥ the final one, hence ≥0 — so no valid P is ever
-// pruned. Output is identical to the old brute force (all coin-vectors, filtered), but a rigid diamond
-// bottoms out in O(#strings) instead of enumerating C(maxh+s, s) vectors.  (IV kept for signature compat.)
+// Pruned DFS over coin-vectors P (Theorem 3, no cap): subtract L-strings one at a time; the moment the
+// remainder goes negative, abandon the branch. Any valid degeneration has M−ΣP·S a diagram (so ≥0), and
+// since we only subtract (S≥0) every partial remainder is ≥ the final one, hence ≥0 — so no valid P is
+// ever pruned, and non-negativity alone bounds the search (no |P|₁ cap needed — the old ds.sage/pvmhs.sage
+// max-column-sum cap dropped genuine degenerations). A rigid diamond bottoms out in O(#strings) instead of
+// enumerating coin-vectors.  (IV kept for signature compat.)
 function degenerations(M,S,T,IV){
-  const len=S.length, maxh=Math.max(...colSums(M)), out=new Map(), P=new Array(len).fill(0);   // |P|₁ ≤ maxh cap matches ds.sage's  for k in [1..max_h_pq]
+  const len=S.length, out=new Map(), P=new Array(len).fill(0);
   (function rec(i,R,coins){
     if(i===len){ if(coins>0 && isDiagram(R)){
         let D=R; for(let j=0;j<len;j++) if(P[j]) D=addScaled(D,T[j],P[j]);
@@ -60,7 +61,7 @@ function degenerations(M,S,T,IV){
       return; }
     rec(i+1,R,coins);                                                         // take zero copies of string i
     let Ri=R;
-    for(let c=1; coins+c<=maxh; c++){ Ri=subScaled(Ri,S[i],1); if(hasNeg(Ri)) break; P[i]=c; rec(i+1,Ri,coins+c); }   // …1,2,… while ≥0 and within the coin cap
+    for(let c=1;;c++){ Ri=subScaled(Ri,S[i],1); if(hasNeg(Ri)) break; P[i]=c; rec(i+1,Ri,coins+c); }   // …1,2,… while the remainder stays ≥0 — no coin cap (Theorem 3: any admissible c is valid)
     P[i]=0;
   })(0,M,0);
   return out; }
