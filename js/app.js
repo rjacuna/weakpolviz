@@ -1,6 +1,7 @@
 /*=================== shared state ===================*/
 let G=null, BASIS=null, tree=[], byUid={}, parentsOrder=[], gnodes=[], gpos={};
 let mode='idle', speed=1, selected=null, _rankY={};
+const EDGE_DRAW_MAX=111;   // above this many edges the graph view draws only the hovered/selected diamond's incident edges
 let collapseT=0;
 let viz='tree', jitterOn=true, autoGraph=false, autoPoset=false, collapseTarget='graph', graphLayout='layered';
 let _hasse=null, _hasseFor=null, curVec=[1,2,2,1], expandT=0, primMode=false;
@@ -26,7 +27,7 @@ function buildTree(){   // spanning tree laid out by longest-path RANK (same lev
   tree=[]; byUid={}; let uid=0;
   const adj={}, radj={}, indeg={}, mvOf={};
   for(let i=0;i<G.vertices.length;i++) indeg[i]=0;
-  G.edges.forEach((e,ei)=>{ (adj[e[0]]=adj[e[0]]||[]).push(e[1]); (radj[e[1]]=radj[e[1]]||[]).push(e[0]); indeg[e[1]]++; mvOf[e[0]+'>'+e[1]]=G.moves[ei]; });
+  G.edges.forEach((e,ei)=>{ (adj[e[0]]=adj[e[0]]||[]).push(e[1]); (radj[e[1]]=radj[e[1]]||[]).push(e[0]); indeg[e[1]]++; if(G.moves) mvOf[e[0]+'>'+e[1]]=G.moves[ei]; });   // moves optional: deduced on the fly (moveFor) when a shipped/uploaded file omits them
   const rank={}, ind=Object.assign({},indeg), q=[];
   for(let i=0;i<G.vertices.length;i++) if(ind[i]===0){ rank[i]=0; q.push(i); }
   while(q.length){ const u=q.shift(); for(const w of (adj[u]||[])){ rank[w]=Math.max(rank[w]||0,(rank[u]||0)+1); if(--ind[w]===0) q.push(w); } }
@@ -104,7 +105,7 @@ function applyState(){ for(let i=0;i<revealOrder.length;i++){ const c=revealOrde
   curReveal=-1; revealT=0; }
 function beginReveal(idx){ const r=revealOrder[idx], c=r.child, p=byUid[r.parentUid];
   c.born=true; c.state='fly'; c.mt=0; c.x=p.x; c.y=p.y;
-  c.pile=buildPiles(G.vertices[p.vid], G.vertices[c.vid], G.r, c.move||[]);
+  c.pile=buildPiles(G.vertices[p.vid], G.vertices[c.vid], G.r, moveFor(c));
   cam.tx=c.tx; cam.ty=c.ty; cam.ts=fitZoom(G.r); autoFrame=false; }
 function stepGrow(dt){
   if(done>=revealOrder.length){ if(playing){ playing=false; updatePlayIcon(); onGrowComplete(); } return; }
@@ -186,14 +187,14 @@ function drawTree(){ if(!G)return; const U=cam.s*0.42;
     const [x1,y1]=toScreen(p.x+dx*f, p.y+dy*f),[x2,y2]=toScreen(n.x-dx*f, n.y-dy*f);
     ctx.save(); ctx.globalAlpha=eAl; ctx.lineWidth=(inc?2.6:1.4)*DPR; ctx.strokeStyle= inc?'rgba(130,180,255,0.95)':dim?'rgba(74,104,143,0.13)':'rgba(74,104,143,0.45)';
     ctx.beginPath(); ctx.moveTo(x1,y1); ctx.bezierCurveTo(x1,(y1+y2)/2,x2,(y1+y2)/2,x2,y2); ctx.stroke(); ctx.restore(); }
-  if(wk){ const hn = hoverTreeUid>=0 ? byUid[hoverTreeUid] : null;               // hovered class: replay its incoming pivot
-    if(hn && hn.parent>=0 && hn.move && hn.move.length){
-      if(weakHoverPileUid!==hn.uid){ weakHoverPileUid=hn.uid; hn.wpile=buildPiles(G.vertices[byUid[hn.parent].vid],G.vertices[hn.vid],G.r,hn.move); weakTreeMt=0; }
+  if(wk){ const hn = hoverTreeUid>=0 ? byUid[hoverTreeUid] : null, hmv=hn?moveFor(hn):null;   // hovered class: replay its incoming pivot
+    if(hn && hn.parent>=0 && hmv && hmv.length){
+      if(weakHoverPileUid!==hn.uid){ weakHoverPileUid=hn.uid; hn.wpile=buildPiles(G.vertices[byUid[hn.parent].vid],G.vertices[hn.vid],G.r,hmv); weakTreeMt=0; }
       weakTreeMt += 0.012*speed; if(weakTreeMt>1.55) weakTreeMt=0; }                // loop: fall (0..1) then hold, then repeat
     else weakHoverPileUid=-1; }
-  else { const hn = (!playing && hoverTreeUid>=0) ? byUid[hoverTreeUid] : null;   // strict tree: hover replays the diamond pivot
-    if(hn && hn.parent>=0 && hn.move && hn.move.length && hn.state==='done'){
-      if(treeHoverPileUid!==hn.uid){ treeHoverPileUid=hn.uid; hn.hpile=buildPiles(G.vertices[byUid[hn.parent].vid],G.vertices[hn.vid],G.r,hn.move); treeHoverMt=0; }
+  else { const hn = (!playing && hoverTreeUid>=0) ? byUid[hoverTreeUid] : null, hmv=hn?moveFor(hn):null;   // strict tree: hover replays the diamond pivot
+    if(hn && hn.parent>=0 && hmv && hmv.length && hn.state==='done'){
+      if(treeHoverPileUid!==hn.uid){ treeHoverPileUid=hn.uid; hn.hpile=buildPiles(G.vertices[byUid[hn.parent].vid],G.vertices[hn.vid],G.r,hmv); treeHoverMt=0; }
       treeHoverMt += 0.012*speed; if(treeHoverMt>1.55) treeHoverMt=0; }
     else treeHoverPileUid=-1; }
   for(const n of tree){ if(!n.born)continue; const [sx,sy]=toScreen(n.x,n.y);
@@ -221,10 +222,13 @@ function drawTree(){ if(!G)return; const U=cam.s*0.42;
 function drawGraph(){ const U=cam.s*0.42, mtx=matrixNodesActive();
   const EE=(viz==='poset')? getHasse() : G.edges, Hw=(G.r+2)*0.62*0.42, Sw=boxHalfW(G.r);   // connect to diamond (or square, in matrix/prim) boundary
   const sel=(selected==null?-1:selected), hov=(hoverVid>=0||sel>=0);   // edges light for the SELECTED node (sticky — same as a mobile tap) and, on desktop, the hovered node
+  const tooMany=EE.length>EDGE_DRAW_MAX;   // past the cap the full edge set is unrenderable: draw ONLY the hovered/selected diamond's incident edges
   for(const [a,b] of EE){ const n=gpos[a],m=gpos[b]; if(!n||!m)continue;
+    const inc=hov&&(a===hoverVid||b===hoverVid||a===sel||b===sel), dim=hov&&!inc;
+    if(tooMany && !inc) continue;
     const dx=m.x-n.x, dy=m.y-n.y, f=mtx?edgeFsq(dx,dy,Sw):edgeF(dx,dy,Hw);
     const [bx,by]=toScreen(n.x+dx*f,n.y+dy*f),[ex,ey]=toScreen(m.x-dx*f,m.y-dy*f);
-    const ang=Math.atan2(ey-by,ex-bx), inc=hov&&(a===hoverVid||b===hoverVid||a===sel||b===sel), dim=hov&&!inc;
+    const ang=Math.atan2(ey-by,ex-bx);
     ctx.lineWidth=(inc?2.6:1.5)*DPR;
     ctx.strokeStyle= inc?'rgba(130,180,255,0.98)':dim?'rgba(74,104,143,0.16)':'rgba(74,104,143,0.7)';
     ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(ex,ey); ctx.stroke();
@@ -556,7 +560,9 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
 function polStat(){ const el=document.getElementById('polstat'); if(!el)return;
   if(weakMode || !G || !(viz==='graph'||viz==='poset')){ el.style.display='none'; return; }
   const V=gnodes.length, E=G.edges.length, isP=isPoset();   // static text — poset view is disconnected (collapseTo('poset') kept but no longer wired)
-  el.innerHTML = katexStr('R(\\underline{h})')+' · '+V+' vertices, '+E+' edges · '+(isP?'poset':'not a poset');
+  let html = katexStr('R(\\underline{h})')+' · '+V+' vertices, '+E+' edges · '+(isP?'poset':'not a poset');
+  if(E>EDGE_DRAW_MAX) html += '<div style="margin-top:5px;font-size:11px;line-height:1.35;color:#e8b366;opacity:.92">'+E.toLocaleString()+' edges — too many to draw; hover / tap a diamond to see its incident edges</div>';
+  el.innerHTML = html;
   el.style.display='block'; }
 function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getElementById('vizbtns'); c.innerHTML='';
   const mk=(label,fn,id)=>{ const b=document.createElement('button'); b.textContent=label; b.onclick=fn; if(id)b.id=id; c.appendChild(b); };
@@ -580,6 +586,33 @@ function idbOpen(){ return _db?Promise.resolve(_db):new Promise((res,rej)=>{ let
 function idbGet(key){ return idbOpen().then(db=>new Promise((res,rej)=>{ const q=db.transaction('graphs').objectStore('graphs').get(key); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); })); }
 function idbPut(key,val){ return idbOpen().then(db=>new Promise((res,rej)=>{ const q=db.transaction('graphs','readwrite').objectStore('graphs').put(val,key); q.onsuccess=()=>res(); q.onerror=()=>rej(q.error); })); }
 function cachedComputeGraph(hvec){ const k=gKey(hvec); let G=graphCache.get(k); if(!G){ G=computeGraph(hvec); graphCache.set(k,G); } return G; }   // sync fallback; big graphs are pre-populated by ensureGraph()
+/*=================== moves deduced on the fly + graph-file I/O ===================*/
+let _denseB=null, _denseBR=-1;                                                           // cache the dense L-string/M-pile basis for the current weight
+function moveFor(node){                                                                  // the c-vector [[stringIdx,count],…] realizing parent→node; use the shipped move, else deduce it once
+  if(node.move!=null) return node.move;
+  if(node.parent<0) return (node.move=[]);
+  if(_denseBR!==G.r){ _denseB=basisOf(G.r); _denseBR=G.r; }                              // one degeneration search from the parent recovers the exact same c the writer stored
+  const hit=degenerations(G.vertices[byUid[node.parent].vid], _denseB.S, _denseB.T).get(keyOf(G.vertices[node.vid]));
+  return (node.move = hit ? hit.P.map((c,i)=>c>0?[i,c]:null).filter(Boolean) : []); }
+function hydrateGraph(lean){                                                             // {r,root,vertices,edges,moves?} → full G (basis + primVertices rebuilt; moves optional, deduced on demand)
+  const r=lean.r, BS=basisOf(r);
+  return { r, root:lean.root, vertices:lean.vertices, edges:lean.edges, moves:lean.moves||null,
+    primVertices:lean.vertices.map(primitivePart),
+    basis:BS.S.map((s,i)=>({S:sparse(BS.S[i]),T:sparse(BS.T[i]),conj:BS.conj[i],A:BS.Asp[i],B:BS.Bsp[i],U:BS.Usp[i],V:BS.Vsp[i]})) }; }
+function fetchFolderGraph(hvec){                                                         // look for a shipped precompute in data/graphs/ before spending a compute
+  return fetch('data/graphs/'+hvec.join(',')+'.json').then(r=>r.ok?r.json():null).then(l=>l?hydrateGraph(l):null).catch(()=>null); }
+function leanOf(G){ return { r:G.r, root:G.root, vertices:G.vertices, edges:G.edges }; }  // download format: no moves (deduced on load), no basis/primVertices (rebuilt on load)
+function hvecOf(G){ const m=G.vertices[G.root]; return m.map((row,i)=>row[i]); }          // the pure (root) diamond's diagonal is the Hodge vector
+function downloadGraph(){ if(!G){ showErr('no graph loaded to download'); return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(leanOf(G))],{type:'application/json'}));
+  a.download=curVec.join(',')+'.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
+function uploadGraph(file){ const rd=new FileReader();
+  rd.onload=()=>{ let lean; try{ lean=JSON.parse(rd.result); }catch(e){ showErr('not a JSON graph file'); return; }
+    if(!lean||!Array.isArray(lean.vertices)||!Array.isArray(lean.edges)||lean.r==null||lean.root==null){ showErr('not a weakpolviz graph file'); return; }
+    let G2; try{ G2=hydrateGraph(lean); }catch(e){ showErr('could not load graph: '+e.message); return; }
+    const hvec=hvecOf(G2), k=gKey(hvec); graphCache.set(k,G2); idbPut(k,G2).catch(()=>{});
+    vecInput.value=hvec.join(','); clearErr(); run(hvec); };
+  rd.readAsText(file); }
 const progEl=document.getElementById('progress');
 function capMsg(e){ return String(e).indexOf('CAP:')>=0? ('too large — aborted past '+SAFETY_CAP.toLocaleString()+' diamonds') : ('compute failed: '+e); }
 /* one visible progress bar PER h being computed. jobs keyed by gKey; input locks while more than MAX_KNOTS run at once. */
@@ -607,6 +640,7 @@ function ensureGraph(hvec){ const k=gKey(hvec);
   if(pending.has(k)) return pending.get(k);                                   // same h already computing — share it
   if(hvec.length-1<=4 && Math.max(...hvec)<=4){ try{ graphCache.set(k,computeGraph(hvec)); }catch(e){ showErr(capMsg(e)); return Promise.resolve(false); } return Promise.resolve(true); }   // trivially tiny ⇒ instant, no bar
   const p=idbGet(k).catch(()=>null).then(stored=>{ if(stored){ graphCache.set(k,stored); return true; }
+    return fetchFolderGraph(hvec).then(cached=>{ if(cached){ graphCache.set(k,cached); idbPut(k,cached).catch(()=>{}); return true; }   // shipped precompute in data/graphs/ ⇒ load instead of compute
     return new Promise(resolve=>{
       const job=addJob(k,hvec);
       const syncFallback=()=>{ job.cancel.style.display='none'; job.txt.textContent='computing '+hvec.join(',')+' … (tab may freeze briefly)';
@@ -623,7 +657,7 @@ function ensureGraph(hvec){ const k=gKey(hvec);
       w.onerror=()=>{ if(settled)return; settled=true; try{w.terminate();}catch(_){} syncFallback(); };   // worker couldn't load ⇒ synchronous, still with the row
       job.cancel.onclick=()=>{ if(settled)return; settled=true; try{w.terminate();}catch(_){} endJob(k); resolve(false); };
       w.postMessage({hvec, cap:SAFETY_CAP});
-    }); });
+    }); }); });
   pending.set(k,p); p.then(()=>pending.delete(k),()=>pending.delete(k)); return p; }
 
 /*=================== validation + warning ===================*/
@@ -654,6 +688,10 @@ document.getElementById('next').onclick=stepNext;
 document.getElementById('replay').onclick=replayGrow;
 const menu=document.getElementById('menu'), menubtn=document.getElementById('menubtn');
 menubtn.onclick=()=>{ menu.style.display = menu.style.display==='block'?'none':'block'; };
+document.getElementById('dlgraph').onclick=()=>{ downloadGraph(); menu.style.display='none'; };
+const _ulfile=document.getElementById('ulfile');
+document.getElementById('ulgraph').onclick=()=>{ _ulfile.click(); };
+_ulfile.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) uploadGraph(f); e.target.value=''; menu.style.display='none'; };
 document.getElementById('speed').oninput=e=>{ speed=+e.target.value; };
 document.getElementById('graphlayout').onchange=e=>{ graphLayout=e.target.value; autoFrame=true; };   // applies to all graph views (not poset)
 document.getElementById('graphlayout').value=graphLayout;   // keep the select in sync with the default (guards against browser form restoration)
