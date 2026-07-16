@@ -1,89 +1,70 @@
 # Precomputed-graph schema (what the app reads)
 
-The app's graph object `G` is exactly what `computeGraph(hvec)` returns in
-[`js/model.js`](../js/model.js) (itself a port of `ds.sage`). A precompute
-generator (Python/Rust) must emit the same shape. This doc is the contract.
+The app's in-memory graph object `G` is what `computeGraph(hvec)` returns in
+[`js/model.js`](../js/model.js) (a port of `ds.sage`). Shipped files carry a **lean
+subset**; everything else is reconstructed on load. This doc is the contract — the
+precompute runner (`scratchpad/run.js` + `gworker.js`) writes exactly this.
 
-## Where it's loaded
+## On-disk format
 
-- In-memory cache `graphCache`, keyed by `gKey(hvec) = MODEL_V + '|' + hvec.join(',')`
-  (currently `MODEL_V = 1`, e.g. `1|1,2,2,1`).
-- Persisted per user in IndexedDB: db `weakpolviz`, store `graphs`, same key → the `G` object (structured-clone).
-- **No server-fetch path exists yet.** To consume shipped files we add one step to
-  `ensureGraph`: memory → IndexedDB → **`fetch('data/graphs/<key>.json')`** → worker-compute.
-  On a hit we hydrate (below) and populate `graphCache` + IndexedDB.
-
-Bump `MODEL_V` only if this schema changes; it invalidates every cached/shipped file.
-
-## The object
-
-`vertices` are dense `(r+1)×(r+1)` integer matrices (the Hodge diamond `h^{p,q}`).
-Sparse matrices are `[[i, j, value], …]` (row, col, value; zeros omitted).
+One file per Hodge vector, named by the vector itself (no key prefix):
 
 ```
-G = {
-  r:            int,                 // weight = hvec.length - 1
-  root:         int,                 // vertex index of the pure diagonal; MUST be the diag(hvec) vertex
-  vertices:     [ dense(r+1,r+1) ],  // one Hodge diamond per vertex
-  primVertices: [ dense(r+1,r+1) ],  // primitivePart(vertices[i]); DERIVABLE (see below)
-  edges:        [ [a, b] ],          // directed: vertex a degenerates to vertex b
-  moves:        [ [[bi, c], …] ],    // parallel to edges: the coin move, sparse (basis index bi, count c>0)
-  basis:        [ { S,T,A,B,U,V: sparse, conj: bool } ]   // depends ONLY on r; DERIVABLE (see below)
-}
+data/graphs/1,2,2,1.json   →   { r, root, vertices, edges }
 ```
 
-### Canonical example — `h = [1,2,1]` (`gKey = "1|1,2,1"`)
+- `r` — weight = `hvec.length - 1`.
+- `root` — index of the pure-diagonal vertex; `vertices[root] = diag(hvec)`.
+- `vertices` — dense `(r+1)×(r+1)` integer matrices, one Hodge diamond `h^{p,q}` per vertex.
+- `edges` — `[[a, b], …]`, directed: vertex `a` degenerates to vertex `b` (the graphs are
+  usually **not** posets — an edge is a single-`c` degeneration, not a cover, so out-degrees
+  can be large).
+
+Nothing else is stored. **`moves`, `primVertices`, and `basis` are all reconstructed on
+load** (below), so shipped files stay small and never go stale when those derived shapes change.
+
+### Canonical example — `h = [1,2,1]`  (`data/graphs/1,2,1.json`)
 
 ```json
 {"r":2,"root":0,
  "vertices":[[[1,0,0],[0,2,0],[0,0,1]],[[0,0,1],[0,2,0],[1,0,0]],[[0,1,0],[1,0,1],[0,1,0]]],
- "primVertices":[[[1,0,0],[0,2,0],[0,0,1]],[[0,0,0],[0,1,0],[1,0,0]],[[0,0,0],[1,0,0],[0,1,0]]],
- "edges":[[0,1],[0,2],[2,1]],
- "moves":[[[2,1]],[[1,1]],[[0,1]]],
- "basis":[{"S":[[0,1,1],[1,0,1],[1,2,1],[2,1,1]],"T":[[0,2,1],[1,1,2],[2,0,1]],"conj":false,
-           "A":[[0,1,1],[1,0,1],[1,2,1],[2,1,1]],"B":[[0,1,1],[1,0,1],[1,2,1],[2,1,1]],
-           "U":[[0,2,1],[1,1,2],[2,0,1]],"V":[[0,2,1],[1,1,2],[2,0,1]]}, … ]}
+ "edges":[[0,1],[0,2],[2,1]]}
 ```
 
-## Invariants the generator MUST honor
+## What the app reconstructs on load  (`hydrateGraph` / `moveFor` in [`js/app.js`](../js/app.js))
 
-1. **`root` is the pure diagonal.** `vertices[root] = diag(hvec)`. Vertex order is
-   otherwise free, as long as `edges`, `moves`, `vertices`, `primVertices` all index the
-   same vertex list consistently (`moves[e]` ↔ `edges[e]`, `primVertices[i]` ↔ `vertices[i]`).
+| field | how it's rebuilt | when |
+|-------|------------------|------|
+| `primVertices[i]` | `primitivePart(vertices[i])` | on load |
+| `basis` (per-`r` `{S,T,A,B,U,V,conj}`) | `basisOf(r)` — depends only on the weight | on load |
+| `moves` (the coin `c`-vector for an edge) | `moveFor(node)`: one `degenerations(vertices[a])` search recovers the exact `c` for edge `a→b`, sparse `[[bi, c], …]` | lazily, per edge, only for the decomposition/pile animation |
 
-2. **`moves` basis indices `bi` reference `coordsList(r)` order** — the enumeration in
-   `basisOf` / `coordsList`: `for w in 0..r, for l in 0..r, for k in 0..r: if l>=1 and l+2k<=w<=r`,
-   pushing `(l,k,w)`. `basis` must be that same list in that order, and `moves`' `bi`
-   indexes into it. **This is the one easy thing to get wrong in a port — verify the
-   basis enumeration order matches exactly** (the `[1,2,1]` example above is a good unit test:
-   its 3 basis entries and its 3 moves `[[2,1]] [[1,1]] [[0,1]]` must line up).
+The deduced `moves`' basis indices `bi` reference `coordsList(r)` / `basisOf` order
+(`for w in 0..r, for l in 0..r, for k in 0..r: if l>=1 and l+2k<=w<=r`). Because moves are
+deduced inside the app from `basisOf(r)`, this ordering is internal — a generator never emits it.
 
-## Ship lean, hydrate on load (recommended)
-
-Two fields are pure functions and need not be shipped:
-
-- **`primVertices[i] = primitivePart(vertices[i])`** — drop it; recompute on load.
-- **`basis` depends only on `r`**, not on `h` — identical across every `h` of a weight.
-  Ship it **once per weight** as `data/basis/<r>.json`, not inside each graph.
-
-So the on-disk layout is:
+## How it's loaded  (`ensureGraph` in [`js/app.js`](../js/app.js))
 
 ```
-data/graphs/1|1,2,2,1.json   →  { r, root, vertices, edges, moves }   // lean, per h
-data/basis/6.json            →  [ {S,T,A,B,U,V,conj}, … ]             // once per weight
+in-memory graphCache  →  IndexedDB (db "weakpolviz", store "graphs")  →  fetch('data/graphs/<h>.json')  →  on-device worker compute
 ```
 
-On a fetch hit the app hydrates: `G.primVertices = vertices.map(primitivePart)` and
-`G.basis = <basis/r.json>` (both already exist in `model.js`). Measured effect (browser):
+- Cache key: `gKey(hvec) = MODEL_V + '|' + hvec.join(',')` (currently `MODEL_V = 1`), e.g. `1|1,2,2,1`.
+  The **on-disk filename has no `MODEL_V|` prefix** — it's just `hvec.join(',') + '.json'`.
+- On a fetch hit the app hydrates (table above), then populates `graphCache` + IndexedDB.
+- A miss (a weight we didn't ship) falls through to a worker compute, which the app then caches.
 
-| h              | V   | E   | full JSON | lean JSON |
-|----------------|-----|-----|-----------|-----------|
-| `1,2,2,1`      | 8   | 14  | 2.5 KB    | 0.6 KB    |
-| `1,1,1,1,1,1`  | 8   | 8   | 8.5 KB    | 0.8 KB    |
-| `1,2,3,3,2,1`  | 54  | 253 | 20.9 KB   | 9.4 KB    |
+Bump `MODEL_V` only if `computeGraph`'s output changes; it invalidates every cached file.
 
-The basis dominates small graphs, so per-weight sharing + dropping `primVertices` is a big
-win (≈4–10× on small graphs; the ratio shrinks as the vertex/edge count grows).
+## Invariants a generator MUST honor
 
-Files ship uncompressed; GitHub Pages (Fastly) gzips JSON on the wire, so on-disk size only
-affects the repo, not transfer.
+1. **`root` is the pure diagonal** — `vertices[root] = diag(hvec)`.
+2. **Consistent vertex indexing** — `edges` index the `vertices` list; vertex order is
+   otherwise free. The `[1,2,1]` example above is a good unit test.
+
+## What's shipped
+
+Weights **≤ 6** (710 files, ~24 MB) ship in `data/graphs/`. Heavier graphs compute
+on-device (and the graph view draws only a hovered/selected diamond's incident edges past
+111 edges, to stay responsive). Files ship uncompressed; GitHub Pages gzips JSON on the
+wire, so on-disk size only affects the repo, not transfer.
