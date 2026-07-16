@@ -1,7 +1,7 @@
 # weakpolviz
 
-Interactive visualization of the degeneration graphs $R(h)$, $R_k(h)$, $R_k^∘(h)$ underlying **polarized** and **weak polarized** relations on
-admissible Hodge–Deligne diamonds.[^1] 
+Interactive visualization of the degeneration graphs $R(\underline{h})$, $R_k(\underline{h})$, $R_k^{\circ}(\underline{h})$ underlying **polarized** and **weak polarized** relations on
+admissible Hodge–Deligne diamonds with Hodge vector $\underline{h}=(h^0,h^1,\dots,h^1,h^0)$ of arbitrary weight $r$.[^1] 
 
 ## Run
 
