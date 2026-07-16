@@ -24,7 +24,8 @@ body.barsplit #barbreak{display:block;flex-basis:100%;width:100%;height:0;margin
 body.barsplit #vizbtns{order:2} body.barsplit #abctrls{order:3} body.barsplit #matrixbtn{order:4}
 body.barsplit #rspacer{display:block;width:0;order:6}       /* its global margin-left:auto flushes weak + k/∘ right on row 1 (works even when weakctrls is exploded) */
 body.barsplit #weakbtn{order:8}
-body.barsplit #hlbl{order:21} body.barsplit #vec{order:22} body.barsplit #weakctrls{order:23}   /* k/∘ sit on row 2, flushed left right after the h-input */
+body.barsplit #hlbl{order:21} body.barsplit #vec{order:22}
+body.barsplit #weakctrls{order:23;margin-left:auto}         /* k/∘ sit on row 2, flushed right (only ever visible when the play controls are not) */
 body.barsplit .transport{order:24;margin-left:auto}         /* play controls flushed right on row 2 */
 select,input,button{background:var(--panel);color:var(--ink);border:1px solid #2b3a58;
   border-radius:8px;padding:6px 10px;font:inherit}
