@@ -44,15 +44,25 @@ function colSums(M){ const n=M.length-1, s=new Array(n+1).fill(0);
 function intVectors(sum,parts){ const res=[], cur=new Array(parts).fill(0);
   (function rec(pos,rem){ if(pos===parts-1){ cur[pos]=rem; res.push(cur.slice()); return; }
     for(let v=0;v<=rem;v++){ cur[pos]=v; rec(pos+1,rem-v); } })(0,sum); return res; }
+function hasNeg(M){ for(let i=0;i<M.length;i++){ const row=M[i]; for(let j=0;j<row.length;j++) if(row[j]<0) return true; } return false; }
+// Pruned DFS over coin-vectors P: subtract L-strings one at a time; the moment the remainder goes
+// negative, abandon the branch. Any valid degeneration has M−ΣP·S a diagram (so ≥0), and since we
+// only subtract (S≥0) every partial remainder is ≥ the final one, hence ≥0 — so no valid P is ever
+// pruned. Output is identical to the old brute force (all coin-vectors, filtered), but a rigid diamond
+// bottoms out in O(#strings) instead of enumerating C(maxh+s, s) vectors.  (IV kept for signature compat.)
 function degenerations(M,S,T,IV){
-  const maxh=Math.max(...colSums(M)), len=S.length, out=new Map();
-  for(let k=1;k<=maxh;k++){ const vs=IV[k]||(IV[k]=intVectors(k,len));
-    for(const P of vs){ let N=M;
-      for(let i=0;i<len;i++) if(P[i]) N=subScaled(N,S[i],P[i]);
-      if(isDiagram(N)){ let D=N;
-        for(let i=0;i<len;i++) if(P[i]) D=addScaled(D,T[i],P[i]);
+  const len=S.length, maxh=Math.max(...colSums(M)), out=new Map(), P=new Array(len).fill(0);   // |P|₁ ≤ maxh cap matches ds.sage's  for k in [1..max_h_pq]
+  (function rec(i,R,coins){
+    if(i===len){ if(coins>0 && isDiagram(R)){
+        let D=R; for(let j=0;j<len;j++) if(P[j]) D=addScaled(D,T[j],P[j]);
         const key=keyOf(D), nb=P.reduce((a,x)=>a+(x>0?1:0),0), cur=out.get(key);
-        if(!cur||nb<cur.nb||(nb===cur.nb&&k<cur.k)) out.set(key,{D,P,nb,k}); } } }
+        if(!cur||nb<cur.nb||(nb===cur.nb&&coins<cur.k)) out.set(key,{D,P:P.slice(),nb,k:coins}); }
+      return; }
+    rec(i+1,R,coins);                                                         // take zero copies of string i
+    let Ri=R;
+    for(let c=1; coins+c<=maxh; c++){ Ri=subScaled(Ri,S[i],1); if(hasNeg(Ri)) break; P[i]=c; rec(i+1,Ri,coins+c); }   // …1,2,… while ≥0 and within the coin cap
+    P[i]=0;
+  })(0,M,0);
   return out; }
 function sparse(M){ const out=[]; for(let i=0;i<M.length;i++)for(let j=0;j<M.length;j++) if(M[i][j]) out.push([i,j,M[i][j]]); return out; }
 // primitive (Lefschetz) Hodge numbers  P^{p,q} = h^{p,q} − h^{p-1,q-1}  (0 above the middle weight).  Port of ds.sage P(M).

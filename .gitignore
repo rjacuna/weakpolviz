@@ -1,0 +1,4 @@
+# Precomputed graph corpus — generated, size-diagnosed, not committed (for now).
+# The schema they follow is tracked: data/SCHEMA.md
+data/graphs/
+data/basis/
