@@ -40,7 +40,7 @@ function buildTree(){   // spanning tree laid out by longest-path RANK (same lev
     const c=mk(v, nodeOf[par].uid, mvOf[par+'>'+v], rr, false); nodeOf[par].kids.push(c.uid); }
   layoutTree();
   parentsOrder=tree.filter(n=>n.kids.length>0).sort((a,b)=>a.depth-b.depth||a.tx-b.tx).map(n=>n.uid); }
-function layoutTree(){ let leafX=0; const XS=3.2,YS=3.8;
+function layoutTree(){ let leafX=0; const dW=(G.r+2)*0.62*0.42*2, XS=Math.max(3.2,dW*1.12), YS=Math.max(3.8,dW*1.18);   // step ≥ diamond width so unrotated diamonds never overlap
   (function assign(u){ const n=byUid[u];
     if(n.kids.length===0){ n.tx=leafX*XS; leafX++; }
     else{ n.kids.forEach(assign); const xs=n.kids.map(k=>byUid[k].tx);
@@ -57,8 +57,9 @@ function buildGraph(){
   gnodes.forEach(n=>{ if(ind[n.vid]===0){ rank[n.vid]=0; q.push(n.vid); } });
   while(q.length){ const u=q.shift(); for(const w of (adj[u]||[])){ rank[w]=Math.max(rank[w]||0,(rank[u]||0)+1); if(--ind[w]===0) q.push(w); } }
   const layers={}; gnodes.forEach(n=>{ const r=rank[n.vid]==null?9:rank[n.vid]; (layers[r]=layers[r]||[]).push(n); });
+  const dW=(G.r+2)*0.62*0.42*2, XS=Math.max(3.4,dW*1.15), YS=Math.max(5.2,dW*1.25);   // step ≥ diamond width so unrotated diamonds never overlap (matrix boxes are narrower, so they always clear)
   Object.keys(layers).forEach(r=>{ const arr=layers[r]; arr.forEach((n,k)=>{
-    n.x=(k-(arr.length-1)/2)*3.4; n.y=(+r)*5.2; n.grank=(rank[n.vid]==null?9:rank[n.vid]); }); });
+    n.x=(k-(arr.length-1)/2)*XS; n.y=(+r)*YS; n.grank=(rank[n.vid]==null?9:rank[n.vid]); }); });
   gpos={}; gnodes.forEach(n=>{ gpos[n.vid]=n; _rankY[n.vid]=n.y; n.gx=n.x; n.gy=n.y; }); }
 function posetTargets(){ const p={}; gnodes.forEach(n=>{ p[n.vid]={x:n.gx,y:n.gy}; }); return p; }   // poset uses the same layered layout as the graph (longest-path rank == Hasse rank)
 let reflowT=0;
