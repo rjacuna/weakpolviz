@@ -367,7 +367,7 @@ function updateABStat(){ const el=document.getElementById('abstat'); if(!el)retu
 /*=================== primitive-decomposition panel (grid of KPR pieces P_w(-a)) ===================*/
 // A pannable "infinite canvas" on the left: rows = primitive weight w, columns = Tate twist a; the cells sum to the focused diamond.
 const ppcv=document.getElementById('ppcanvas'), ppctx=ppcv?ppcv.getContext('2d'):null;
-let ppcam={x:-0.85,y:-1.05,s:150}, primGridData=null, primPanelVid=-1, ppShown=false, ppHeadCv=null, ppHeadR=-1, ppHeadPrim=null, primStickyVid=-1;
+let ppcam={x:-0.85,y:-1.05,s:150}, primGridData=null, primPanelVid=-1, ppShown=false, ppHeadCv=null, ppHeadR=-1, ppHeadPrim=null, ppHeadExpl=null, primStickyVid=-1;
 let panelW=0, panelUserSized=false;                                                 // decomposition panel width in px (0 ⇒ default 48vw); the pull-tab drags it
 function ppW(){ return panelW>0? panelW : Math.round(window.innerWidth*0.48); }
 function ppFrac(){ return ppShown? clamp(ppW()/window.innerWidth,0.12,0.85) : 0; }   // fraction of the viewport the panel eats (0 when closed)
@@ -386,11 +386,10 @@ function updatePrimPanel(vid){ if(!G)return;
   else { rows = full.rows; maxCol = full.rows.length? Math.max(...full.rows.map(r=>r.cells.length-1)) : 0; }
   primGridData={vid, r:G.r, grid:{r:G.r, rows}, src: useP? G.primVertices[vid] : G.vertices[vid], maxCol, twists:!useP, totalLabel: useP?'P(◇) =':'◇ ='};
   const t=document.getElementById('pp-title'); if(!t)return;
-  if(!ppHeadCv || !ppHeadCv.isConnected || ppHeadR!==G.r || ppHeadPrim!==useP){     // (re)build the equation + inline node; canvas redrawn each frame
-    t.innerHTML=katexStr(useP ? 'P(\\Diamond)\\;=\\;\\sum_{w=0}^{'+G.r+'} P_w\\;='
-                              : '\\Diamond\\;=\\;\\sum_{w=0}^{'+G.r+'}\\sum_{a=0}^{\\,'+G.r+'-w} P_w(-a)\\;=')
+  if(!ppHeadCv || !ppHeadCv.isConnected || ppHeadR!==G.r || ppHeadPrim!==useP || ppHeadExpl!==explLoaded){   // (re)build the equation + inline node; canvas redrawn each frame
+    t.innerHTML=renderMd(EXPL[useP?'decomp-title-prim':'decomp-title']||'', {r:G.r})   // the panel's header equation is markdown+KaTeX too (explanations/decomp-title*.md)
       +'<canvas id="pp-head" style="vertical-align:middle;margin-left:8px"></canvas>';
-    ppHeadCv=document.getElementById('pp-head'); ppHeadR=G.r; ppHeadPrim=useP;
+    ppHeadCv=document.getElementById('pp-head'); ppHeadR=G.r; ppHeadPrim=useP; ppHeadExpl=explLoaded;
     const HH=44; ppHeadCv.width=HH*DPR; ppHeadCv.height=HH*DPR; ppHeadCv.style.width=HH+'px'; ppHeadCv.style.height=HH+'px'; }
   const ex=document.getElementById('pp-expl');                                          // panel-side "what the decomposition is" — changes for pol vs pol+prim
   if(ex) ex.innerHTML = explLoaded? renderMd(useP? (EXPL['decomp-panel-prim']||'') : (EXPL['decomp-panel']||''), {}) : ''; }
@@ -547,7 +546,7 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   const _dt=document.getElementById('decomptab'); if(_dt) _dt.classList.toggle('tabhide', weakMode);   // decomposition pull-tab: pol-side only (hidden while weak is open)
   ac('matrixbtn', matrixMode); ac('decomptab', decompMode);
   ex(document.getElementById('weakctrls'), !weakMode);                                    // k / ∘ appear only with weak, left of the weak button
-  ex(document.getElementById('abctrls'), !(weakMode && weakLayout!=='tree'));             // a / 𝒜 overlay buttons: flush-left, weak graph/poset only
+  ex(document.getElementById('abctrls'), !(weakMode && weakCirc && weakLayout!=='tree'));   // a / 𝒜 overlay buttons: weak graph/poset, and only with ∘ on (the overlay is about R_k^∘)
   ac('abtn', abMode==='a'); ac('Abtn', abMode==='A'); updateABStat(); polStat();           // keep the overlay legend + pol legend in sync with the view
   const now = decompMode && !weakMode;                                                    // KPR decomposition panel: any pol view (tree/graph/poset), with or without prim
   if(now!==ppShown){ ppShown=now; const pp=document.getElementById('primpanel');
@@ -693,11 +692,12 @@ const _origRun=run; run=function(v){ _origRun(v); populateWeakK(); if(weakMode) 
 const EXPL={};                          // name -> raw markdown
 const EXPL_FILES=['tree','graph','poset','weak-circ0','weak-graph','weak-poset','weak-tree',
                   'weak-circ-graph','weak-circ-poset','weak-circ-tree','mod-prim','mod-matrix','mod-decomp',
-                  'decomp-panel','decomp-panel-prim'];
+                  'decomp-panel','decomp-panel-prim','decomp-title','decomp-title-prim'];
 let explLoaded=false;
 function loadExplanations(){ return Promise.all(EXPL_FILES.map(n=>                     // ?t= so edits show on reload without a version bump
     fetch('explanations/'+n+'.md?t='+Date.now()).then(r=>r.ok?r.text():'').catch(()=>'').then(t=>{ EXPL[n]=t; })
-  )).then(()=>{ explLoaded=true; updateHint(); }); }
+  )).then(()=>{ explLoaded=true; updateHint();
+    if(ppShown && primPanelVid>=0) updatePrimPanel(primPanelVid); }); }   // panel already open when the files landed: re-render its (now markdown) title + explanation
 function renderMd(md, ctx){                                                             // [[var]] → ctx, then Markdown, with $…$ math protected from marked and rendered by KaTeX
   let s=md.replace(/\[\[(\w+)\]\]/g,(m,k)=> (ctx && k in ctx)? ctx[k] : m);
   const math=[];

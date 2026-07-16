@@ -15,8 +15,19 @@ decomposition modes are active. On the tree view, prim or rotate replaces the ba
 blurb (they own the message); the decomposition panel likewise replaces the base blurb,
 since its "what it is" text lives on the panel.
 
-`decomp-panel.md` and `decomp-panel-prim.md` are the explanation shown *inside* the
-decomposition panel — the second is used in prim mode (pol+prim), the first otherwise.
+### Decomposition panel
+
+Everything written in the panel is editable here (the `-prim` variant is used in prim
+mode, i.e. pol+prim; the other otherwise):
+
+- `decomp-title.md` / `decomp-title-prim.md` — the header equation at the top of the
+  panel. `[[r]]` is the weight. The focused diamond is drawn on a canvas appended right
+  after, so keep these to a single line and end with `=`.
+- `decomp-panel.md` / `decomp-panel-prim.md` — the explanation at the bottom.
+
+The grid's own labels (`w = 0`, `a = 1`, `P_w(−a)`, `Σₐ`) are painted straight onto the
+canvas at computed positions, so they are **not** markdown — they live in `ppLabel` /
+`ppHeaderSum` in `js/app.js`.
 
 ## Formatting
 

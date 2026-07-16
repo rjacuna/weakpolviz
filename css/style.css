@@ -129,6 +129,7 @@ body.ppopen #weakstat,body.ppopen #polstat{max-width:calc(100vw - var(--ppw,48vw
 #pp-title{padding:11px 74px 8px 16px;color:var(--dim);font-size:14px;line-height:1.5;border-bottom:1px solid #17243c}   /* right padding keeps the equation clear of the prim button */
 #primpanel #primbtn{position:absolute;top:9px;right:12px;z-index:3;padding:5px 11px}   /* prim lives in the panel's top-right corner (pol & pol+prim) */
 #pp-title .katex{font-size:1.02em;color:#cfe0f7}
+#pp-title p{display:inline;margin:0}   /* markdown wraps the equation in <p>; keep it inline so the node canvas sits beside it */
 #pp-title .sub{display:block;font-size:11px;opacity:.62;margin-top:5px}
 #ppcanvas{flex:1;width:100%;min-height:0;display:block;cursor:grab;touch-action:none}
 #ppcanvas:active{cursor:grabbing}

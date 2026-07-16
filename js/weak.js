@@ -168,4 +168,7 @@ function populateWeakK(){ const sel=document.getElementById('weakk'); if(!sel)re
   sel.innerHTML=''; for(let k=0;k<=kmax;k++){ const o=document.createElement('option'); o.value=k; o.textContent=k; if(k===weakK)o.selected=true; sel.appendChild(o); } }
 document.getElementById('weakbtn').onclick=()=>{ weakMode?closeWeak():openWeak(); };
 document.getElementById('weakk').onchange=e=>{ weakK=Math.max(0,parseInt(e.target.value,10)||0); if(weakMode) refreshWeak(); };
-document.getElementById('weakcirc').onchange=e=>{ weakCirc=e.target.checked; if(weakMode){ if(weakLayout==='poset' && !wActiveIsPoset()){ weakLayout='graph'; renderVizButtons(); } autoFrame=true; updateWeakStat(); updateHint(); } };
+document.getElementById('weakcirc').onchange=e=>{ weakCirc=e.target.checked;
+  if(!weakCirc && abMode){ abMode=null; syncAB(); }   // the a/𝒜 overlay lives on R_k^∘ — it can't outlive ∘ (its buttons hide, so it'd be stuck on)
+  if(weakMode){ if(weakLayout==='poset' && !wActiveIsPoset()){ weakLayout='graph'; renderVizButtons(); }
+    autoFrame=true; updateWeakStat(); updateHint(); updateChrome(); } };   // updateChrome re-evaluates the a/𝒜 buttons against the new ∘ state
