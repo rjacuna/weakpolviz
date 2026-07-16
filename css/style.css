@@ -23,8 +23,8 @@ body.barsplit #bar{height:auto;flex-wrap:wrap;row-gap:5px;padding-top:5px;paddin
 body.barsplit #barbreak{display:block;flex-basis:100%;width:100%;height:0;margin:0;order:20}
 body.barsplit #vizbtns{order:2} body.barsplit #abctrls{order:3} body.barsplit #matrixbtn{order:4}
 body.barsplit #rspacer{display:block;width:0;order:6}       /* its global margin-left:auto flushes weak + k/∘ right on row 1 (works even when weakctrls is exploded) */
-body.barsplit #weakctrls{order:7} body.barsplit #weakbtn{order:8}
-body.barsplit #hlbl{order:21} body.barsplit #vec{order:22}
+body.barsplit #weakbtn{order:8}
+body.barsplit #hlbl{order:21} body.barsplit #vec{order:22} body.barsplit #weakctrls{order:23}   /* k/∘ sit on row 2, flushed left right after the h-input */
 body.barsplit .transport{order:24;margin-left:auto}         /* play controls flushed right on row 2 */
 select,input,button{background:var(--panel);color:var(--ink);border:1px solid #2b3a58;
   border-radius:8px;padding:6px 10px;font:inherit}
@@ -94,7 +94,7 @@ label.small{color:var(--dim);font-size:12px}
 #weakstat .katex{font-size:1.05em}
 #weakbtn.active,#primbtn.active,#matrixbtn.active,.abbtn.active{background:#1d3a6b;border-color:#2f5aa0;color:#cfe0f7}
 /* decomposition pull-tab: a vertical journal-separator tab docked to the left edge; rides the panel's right edge when open */
-#decomptab{position:fixed;top:calc(var(--barh) + 8px);left:0;z-index:14;
+#decomptab{position:fixed;top:calc(var(--barh) + 76px);left:0;z-index:14;   /* ~2cm below the bar so it never clashes with the R(h) legend (which can wrap on mobile) */
   writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;
   padding:16px 8px;cursor:grab;font-size:13px;letter-spacing:.6px;user-select:none;touch-action:none;
   color:var(--dim);background:linear-gradient(90deg,#182338,#101828);
@@ -108,11 +108,11 @@ body.ppopen #decomptab{left:var(--ppw,48vw)}
 .abbtn{padding:5px 10px;font-family:ui-monospace,monospace;min-width:26px}
 #weakctrls{display:inline-flex;align-items:center;gap:7px}
 #weakctrls select{padding:5px 6px}
-#weakstat,#polstat{position:fixed;left:12px;top:calc(var(--barh) + 10px);background:#0d1626e6;border:1px solid #23324e;border-radius:8px;
+#weakstat,#polstat{position:fixed;right:12px;top:calc(var(--barh) + 10px);max-width:calc(100vw - 24px);background:#0d1626e6;border:1px solid #23324e;border-radius:8px;
   padding:6px 11px;font-size:12px;color:var(--dim);z-index:16;display:none}
 #weakstat b,#polstat b{color:#cfe0f7}
 #polstat .katex{font-size:1.05em}
-body.ppopen #polstat{left:calc(var(--ppw,48vw) + 12px)}   /* clear the decomposition panel */
+body.ppopen #weakstat,body.ppopen #polstat{max-width:calc(100vw - var(--ppw,48vw) - 24px)}   /* right-flushed: cap the width so it can't run under the decomposition panel */
 .posetlink{color:var(--accent);cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
 .posetlink:hover{color:#cfe0f7;text-decoration-style:solid}
 #abstat{position:fixed;right:12px;top:calc(var(--barh) + 10px);max-width:calc(100vw - 24px);background:#0d1626e6;border:1px solid #23324e;
