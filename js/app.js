@@ -400,8 +400,8 @@ function ppLabel(pctx,x,y,w,a){ pctx.textAlign='left'; pctx.textBaseline='alphab
   pctx.fillStyle='#7f9bc4'; pctx.fillText('P',sx,y);
   pctx.font=f2+'px ui-sans-serif'; pctx.fillText(sw,sx+pw,y+3*DPR);
   pctx.font='600 '+f1+'px ui-sans-serif'; pctx.fillText(tail,sx+pw+swW,y); }
-function ppHeaderSum(pctx,x,y){ pctx.textBaseline='middle'; pctx.fillStyle='#8fb4e6';   // "Σₐ Pw(−a)" centered at (x,y) — the sum column header
-  const f1=11*DPR, f2=8*DPR, seg=[['Σ','a'],[' P','w'],['(−a)','']];
+function ppHeaderSum(pctx,x,y){ pctx.textBaseline='middle'; pctx.fillStyle='#8fb4e6';   // "Σₐ" centered at (x,y) — the sum column header (the first column is the a-sum of each row)
+  const f1=13*DPR, f2=9*DPR, seg=[['Σ','a']];
   let tot=0; for(const[t,sub]of seg){ pctx.font='600 '+f1+'px ui-sans-serif'; tot+=pctx.measureText(t).width; if(sub){ pctx.font=f2+'px ui-sans-serif'; tot+=pctx.measureText(sub).width; } }
   let sx=x-tot/2; pctx.textAlign='left';
   for(const[t,sub]of seg){ pctx.font='600 '+f1+'px ui-sans-serif'; pctx.fillText(t,sx,y); sx+=pctx.measureText(t).width; if(sub){ pctx.font=f2+'px ui-sans-serif'; pctx.fillText(sub,sx,y+3*DPR); sx+=pctx.measureText(sub).width; } } }
@@ -420,9 +420,7 @@ function drawPrimGrid(){ if(!ppctx)return;                                      
   if(twists){ { const h=toS(0,-0.72); ppHeaderSum(ppctx,h[0],h[1]); }               // column headers: Σₐ Pw(−a), then a = 0,1,…
     ppctx.font=(12.5*DPR)+'px ui-sans-serif'; ppctx.textBaseline='middle';
     for(let a=0;a<=maxCol;a++){ const p=toS(a+PG,-0.72); if(p[0]<OX-40*DPR||p[0]>W+40*DPR)continue; ppctx.fillStyle='#6c86ad'; ppctx.textAlign='center'; ppctx.fillText('a = '+a,p[0],p[1]); } }
-  else { const h=toS(0,-0.72); ppctx.textBaseline='middle'; ppctx.fillStyle='#8fb4e6';   // prim: the first column is P_w (the pile bottoms)
-    const f1=12*DPR, f2=9*DPR; ppctx.font='600 '+f1+'px ui-sans-serif'; const pw=ppctx.measureText('P').width; ppctx.font=f2+'px ui-sans-serif'; const ww=ppctx.measureText('w').width, sx=h[0]-(pw+ww)/2;
-    ppctx.textAlign='left'; ppctx.font='600 '+f1+'px ui-sans-serif'; ppctx.fillText('P',sx,h[1]); ppctx.font=f2+'px ui-sans-serif'; ppctx.fillText('w',sx+pw,h[1]+3*DPR); }
+  /* prim: no first-column header (the column is just the P_w pile bottoms) */
   rows.forEach((row,ri)=>{ const y=ri*RP;                                          // weight rows (no diamond row):  Σ_a P_w(-a)  =  P_w(0)  P_w(-1)  …
     const lp=toS(-0.85,y); ppctx.fillStyle='#6c86ad'; ppctx.textAlign='right'; ppctx.textBaseline='middle'; ppctx.font=(12.5*DPR)+'px ui-sans-serif'; ppctx.fillText('w = '+row.w,lp[0],lp[1]);
     const ps=toS(0,y); piece(row.sum,ps[0],ps[1],diag);
