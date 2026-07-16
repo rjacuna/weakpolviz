@@ -1,1 +1,1 @@
-In **primitive** mode the panel decomposes only the primitive part $P(\lozenge) = \sum_{w} P_w$: one generator $P_w$ per weight $w$. These are exactly the $a=0$ column of the full $\lozenge = \sum_{w}\sum_{a} P_w(-a)$.
+In **primitive** mode the panel decomposes the primitive part $P(\lozenge) = \sum_{w} \lozenge_{P_w}, where $P_w$ are the primitive Hodge numbers in weight $w$, and $\lozenge_{P_w}$ is the diamond of $P_w$. These are exactly the $a=0$ column of the full $\lozenge = \sum_{w}\sum_{a} \lozenge_{P_w}(-a)$.
