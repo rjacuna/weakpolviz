@@ -454,13 +454,14 @@ addEventListener('resize',()=>{ if(panelUserSized) panelW=clamp(panelW,220,Math.
 addEventListener('orientationchange',()=>setTimeout(fitBar,120));
 // Split the toolbar into two rows when the current button set doesn't fit on one (portrait phones); a single row otherwise (landscape / desktop).
 // BARH (the real bar height) feeds the canvas offset + everything anchored below the bar, so the layout stays correct at either height.
-let _fitting=false;
+let _fitting=false, _wasSplit=null;
 function fitBar(){ if(_fitting)return; _fitting=true;
   const bar=document.getElementById('bar');
   if(bar.clientWidth<=0){ _fitting=false; return; }   // not laid out yet (hidden/zero-size tab): any measurement here is nonsense — leave BARH alone until a real resize
   document.body.classList.remove('barsplit');   // measure the single-row width first
   const overflow = bar.scrollWidth > bar.clientWidth + 2;
   if(overflow) document.body.classList.add('barsplit');
+  if(overflow!==_wasSplit){ _wasSplit=overflow; setHintCollapsed(overflow); }   // only on the transition, so a manual re-open isn't fought: the hint is too crowded on a split (phone) layout
   const h = overflow ? Math.ceil(bar.getBoundingClientRect().height) : 52;
   if(h!==BARH){ BARH=h; document.documentElement.style.setProperty('--barh', h+'px'); resize(); autoFrame=true; }
   else document.documentElement.style.setProperty('--barh', h+'px');
@@ -541,7 +542,7 @@ function updateChrome(){   // dynamic toolbar: show a button only where its stat
   const ex=(el,hide)=>{ if(el) el.classList.toggle('explode',hide); };
   const ac=(id,on)=>{ const b=document.getElementById(id); if(b) b.classList.toggle('active',on); };
   ex(document.querySelector('.transport'), !(viz==='tree' && !weakMode && !primMode));   // play/step only in the strict tree (pol) view
-  ex(document.getElementById('primbtn'), weakMode);                                       // prim blows away while weak is open
+  // prim now lives inside the decomposition panel (top-right), so it hides/shows with the panel — no toolbar explode needed
   ex(document.getElementById('matrixbtn'), weakMode);                                     // rotate: present for pol & pol+prim, all views
   const _dt=document.getElementById('decomptab'); if(_dt) _dt.classList.toggle('tabhide', weakMode);   // decomposition pull-tab: pol-side only (hidden while weak is open)
   ac('matrixbtn', matrixMode); ac('decomptab', decompMode);
@@ -728,8 +729,10 @@ function updateHint(){ const el=document.getElementById('hinttext'); if(!el||!ex
 function renderMathLabels(){ const h=document.getElementById('hlbl'), k=document.getElementById('klbl');
   if(window.katex){ if(h) h.innerHTML=katex.renderToString('\\underline{h}\\;=',{throwOnError:false}); if(k) k.innerHTML=katex.renderToString('k\\;=',{throwOnError:false}); }
   else { if(h) h.innerHTML='<u>h</u>&nbsp;='; if(k) k.textContent='k ='; } }
-document.getElementById('hinthide').onclick=()=>{ document.getElementById('hint').style.display='none'; document.getElementById('hintshow').style.display='block'; };
-document.getElementById('hintshow').onclick=()=>{ document.getElementById('hint').style.display=''; document.getElementById('hintshow').style.display='none'; };
+function setHintCollapsed(on){ const h=document.getElementById('hint'), s=document.getElementById('hintshow');   // collapsed = just the "?" pill
+  if(!h||!s)return; h.style.display=on?'none':''; s.style.display=on?'block':'none'; }
+document.getElementById('hinthide').onclick=()=>setHintCollapsed(true);
+document.getElementById('hintshow').onclick=()=>setHintCollapsed(false);
 renderMathLabels(); loadExplanations(); window.addEventListener('load', ()=>{ renderMathLabels(); updateHint(); fitBar(); });   // KaTeX/marked load deferred — re-render + re-fit once ready (label widths settle)
 
 /*=================== boot ===================*/
