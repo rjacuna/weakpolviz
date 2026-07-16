@@ -2,8 +2,8 @@
 let G=null, BASIS=null, tree=[], byUid={}, parentsOrder=[], gnodes=[], gpos={};
 let mode='idle', speed=1, selected=null, _rankY={};
 const EDGE_DRAW_MAX=111;   // above this many edges the graph view draws only the hovered/selected diamond's incident edges
-const TREE_NODE_MAX=2000;  // cap the decomposition-tree unfolding (a DAG has exponentially many root→leaf paths); BFS-truncate + warn past this
-let treeTruncated=false;
+const TREE_NODE_MAX=2000;  // if the tree's full unfolding would exceed this, tree view is DISABLED and graph view is the default (a DAG has exponentially many root→leaf paths)
+let treeTooBig=false;
 let collapseT=0;
 let viz='tree', jitterOn=true, autoGraph=false, autoPoset=false, collapseTarget='graph', graphLayout='layered';
 let _hasse=null, _hasseFor=null, curVec=[1,2,2,1], expandT=0, primMode=false;
@@ -25,17 +25,25 @@ function hasseEdges(){ const N=G.vertices.length, adj={};
 function getHasse(){ if(_hasseFor===G) return _hasse; _hasse=hasseEdges(); _hasseFor=G; return _hasse; }
 
 /*=================== layout ===================*/
-function buildTree(){   // FULL UNFOLDING of the degeneration DAG: every root→…→v path is its own branch, so a vertex reached k ways appears k times — the "all the ways to decompose" the tree is meant to show. BFS-bounded by TREE_NODE_MAX (a DAG unfolds to exponentially many paths).
-  tree=[]; byUid={}; treeTruncated=false; let uid=0;
+function unfoldSize(adj){   // # nodes a FULL unfolding would have = Σ_v (# root→v paths); early-exits once it passes the cap
+  const V=G.vertices.length, indeg=new Array(V).fill(0);
+  for(let u=0;u<V;u++) for(const w of adj[u]) indeg[w]++;
+  const ind=indeg.slice(), q=[]; for(let i=0;i<V;i++) if(ind[i]===0) q.push(i);
+  const order=[]; while(q.length){ const u=q.shift(); order.push(u); for(const w of adj[u]) if(--ind[w]===0) q.push(w); }
+  const paths=new Array(V).fill(0); paths[G.root]=1; let total=1;
+  for(const u of order) for(const w of adj[u]){ paths[w]+=paths[u]; total+=paths[u]; if(total>TREE_NODE_MAX) return total; }
+  return total; }
+function buildTree(){   // FULL UNFOLDING of the degeneration DAG: every root→…→v path is its own branch, so a vertex reached k ways appears k times — the "all the ways to decompose". If the unfolding would exceed TREE_NODE_MAX the tree is left as just the root and disabled (graph view takes over).
+  tree=[]; byUid={}; let uid=0;
   const adj={}, mvOf={};
   for(let i=0;i<G.vertices.length;i++) adj[i]=[];
   G.edges.forEach((e,ei)=>{ adj[e[0]].push(e[1]); if(G.moves) mvOf[e[0]+'>'+e[1]]=G.moves[ei]; });   // moves optional: else deduced on the fly (moveFor)
+  treeTooBig = unfoldSize(adj) > TREE_NODE_MAX;
   const mk=(vid,par,depth,done,mv)=>{ const n={uid:uid++,vid,depth,parent:par,kids:[],born:!!done,state:done?'done':'hidden',x:0,y:0,tx:0,ty:0,mt:done?1:0,move:(mv==null?null:mv),pile:null,_done:!!done,jit:0}; tree.push(n); byUid[n.uid]=n; return n; };
-  const root=mk(G.root,-1,0,true,null), queue=[root];               // BFS so the shallow (most-important) decompositions are complete before the cap bites
-  while(queue.length){ const node=queue.shift();
-    for(const w of adj[node.vid]){
-      if(tree.length>=TREE_NODE_MAX){ treeTruncated=true; queue.length=0; break; }
-      const c=mk(w, node.uid, node.depth+1, false, G.moves? mvOf[node.vid+'>'+w] : null); node.kids.push(c.uid); queue.push(c); } }
+  const root=mk(G.root,-1,0,true,null);
+  if(!treeTooBig){ const queue=[root];
+    while(queue.length){ const node=queue.shift();
+      for(const w of adj[node.vid]){ const c=mk(w, node.uid, node.depth+1, false, G.moves? mvOf[node.vid+'>'+w] : null); node.kids.push(c.uid); queue.push(c); } } }
   layoutTree();
   parentsOrder=tree.filter(n=>n.kids.length>0).sort((a,b)=>a.depth-b.depth||a.tx-b.tx).map(n=>n.uid); }
 function layoutTree(){ let leafX=0; const dW=(G.r+2)*0.62*0.42*2, XS=Math.max(3.2,dW*1.12), YS=Math.max(3.8,dW*1.18);   // step ≥ diamond width so unrotated diamonds never overlap
@@ -92,12 +100,14 @@ function run(hvec){ autoFrame=true; curVec=hvec; _hasseFor=null;
   try{ G=cachedComputeGraph(hvec); }catch(e){ showErr('compute failed: '+e); return; }
   BASIS=G.basis; selected=null; hideWarn();
   buildTree(); buildGraph();
-  if(treeTruncated) showWarn('decomposition tree truncated to '+tree.length.toLocaleString()+' branches (its full unfolding is far larger)');
   revealOrder=[]; for(const puid of parentsOrder){ const p=byUid[puid];
     for(const kuid of p.kids) revealOrder.push({parentUid:puid, child:byUid[kuid]}); }
-  mode='grow'; viz='tree'; done=0; revealT=0; curReveal=-1; renderVizButtons();
-  if(autoplay){ applyState(); cam.x=cam.tx=tree[0].tx; cam.y=cam.ty=tree[0].ty; cam.s=cam.ts=fitZoom(G.r); playing=true; updatePlayIcon(); }
-  else { finishTree(); frameTree(); cam.x=cam.tx; cam.y=cam.ty; cam.s=cam.ts; }   // default: whole tree, settled & static — movie plays only on ▶
+  done=0; revealT=0; curReveal=-1;
+  if(treeTooBig){ viz='graph'; mode='idle'; renderVizButtons();                       // unfolding too large ⇒ open in graph view; tree view is disabled
+    gnodes.forEach(n=>{ n.x=n.gx; n.y=n.gy; }); frameGraph(); cam.x=cam.tx; cam.y=cam.ty; cam.s=cam.ts; }
+  else { mode='grow'; viz='tree'; renderVizButtons();
+    if(autoplay){ applyState(); cam.x=cam.tx=tree[0].tx; cam.y=cam.ty=tree[0].ty; cam.s=cam.ts=fitZoom(G.r); playing=true; updatePlayIcon(); }
+    else { finishTree(); frameTree(); cam.x=cam.tx; cam.y=cam.ty; cam.s=cam.ts; } }   // default: whole tree, settled & static — movie plays only on ▶
 }
 function applyState(){ for(let i=0;i<revealOrder.length;i++){ const c=revealOrder[i].child;
     if(i<done){ c.born=true; c.state='done'; c._done=true; c.pile=null; c.mt=1; c.x=c.tx; c.y=c.ty; }
@@ -145,7 +155,7 @@ function stepCollapse(dt){ collapseT+=dt*speed/950; const tt=clamp(collapseT,0,1
 function frameGraph(){ if(!gnodes.length)return;
   let a=1e9,b=1e9,c=-1e9,d=-1e9; for(const n of gnodes){ a=Math.min(a,n.x);c=Math.max(c,n.x);b=Math.min(b,n.y);d=Math.max(d,n.y);}
   const w=(c-a)+6,h=(d-b)+6, availW=cv.width*(1-ppFrac());                          // the decomposition panel eats its (resizable) share on the left
-  cam.tx=(a+c)/2; cam.ty=(b+d)/2; cam.ts=clamp(Math.min(availW/w,cv.height/h)*0.9,22,70); }
+  cam.tx=(a+c)/2; cam.ty=(b+d)/2; cam.ts=clamp(Math.min(availW/w,cv.height/h)*0.9,0.5,70); }   // low floor so even a big graph fits on load
 function toTree(){ tree.forEach(n=>{ n.born=true; n.mt=1; n.state='done'; n.pile=null; n._done=true; n._sx=n.x; n._sy=n.y; });
   viz='tree'; mode='expand'; expandT=0; renderVizButtons(); autoFrame=false; }
 function stepExpand(dt){ expandT+=dt*speed/900; const tt=clamp(expandT,0,1);
@@ -154,7 +164,15 @@ function stepExpand(dt){ expandT+=dt*speed/900; const tt=clamp(expandT,0,1);
 function frameTree(){ let a=1e9,b=1e9,c=-1e9,d=-1e9;
   for(const n of tree){ if(!n.born)continue; a=Math.min(a,n.tx);c=Math.max(c,n.tx);b=Math.min(b,n.ty);d=Math.max(d,n.ty); }
   const w=(c-a)+4,h=(d-b)+4, availW=cv.width*(1-ppFrac()); cam.tx=(a+c)/2; cam.ty=(b+d)/2;   // decomposition panel eats its (resizable) share on the left
-  cam.ts=clamp(Math.min(availW/w,cv.height/h)*0.9,10,fitZoom(G.r)); }
+  cam.ts=clamp(Math.min(availW/w,cv.height/h)*0.9,0.1,fitZoom(G.r)); }   // low floor so even a very wide tree fits on load
+function viewMinZoom(){   // wheel/pinch may zoom out until the whole current view fits (+ a diamond of margin), even below the usual floor — but never RAISE the floor for small content
+  const useTree=(viz==='tree'||mode==='collapse')||(weakMode&&weakLayout==='tree');
+  let a=1e9,b=1e9,c=-1e9,d=-1e9,any=false;
+  if(useTree){ for(const n of tree){ a=Math.min(a,n.tx);b=Math.min(b,n.ty);c=Math.max(c,n.tx);d=Math.max(d,n.ty); any=true; } }
+  else if(!weakMode){ for(const n of gnodes){ a=Math.min(a,n.x);b=Math.min(b,n.y);c=Math.max(c,n.x);d=Math.max(d,n.y); any=true; } }
+  if(!any) return 8;
+  const pad=(G?(G.r+2)*0.62*0.42*2:4), w=(c-a)+pad*2, h=(d-b)+pad*2, availW=cv.width*(1-ppFrac());
+  return Math.min(8, Math.min(availW/w, cv.height/h)*0.82); }
 
 /*=================== render loop ===================*/
 function frame(now){ const dt=Math.min(40,now-(frame._p||now)); frame._p=now;
@@ -489,7 +507,7 @@ cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); cvPtrs
   dragBg=true; cv.classList.add('drag'); });
 cv.addEventListener('pointermove',e=>{ if(cvPtrs.has(e.pointerId)) cvPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch && cvPtrs.size>=2){ const ni=pinchInfo();                               // pinch: zoom about the finger midpoint, panning with it
-    const [wx,wy]=toWorldXY(pinch.cx,pinch.cy); cam.s=cam.ts=clamp(cam.s*(ni.d/pinch.d),8,220);
+    const [wx,wy]=toWorldXY(pinch.cx,pinch.cy); cam.s=cam.ts=clamp(cam.s*(ni.d/pinch.d),viewMinZoom(),220);
     cam.x=wx-(ni.cx*DPR-cv.width/2-viewOffsetX)/cam.s; cam.y=wy-((ni.cy-BARH)*DPR-cv.height/2)/cam.s; cam.tx=cam.x; cam.ty=cam.y; pinch=ni; return; }
   const dx=e.clientX-last[0],dy=e.clientY-last[1];
   if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
@@ -515,7 +533,7 @@ function cvPtrEnd(e){ cvPtrs.delete(e.pointerId); try{cv.releasePointerCapture(e
   dragBg=false; cv.classList.remove('drag'); }
 cv.addEventListener('pointerup',cvPtrEnd); cv.addEventListener('pointercancel',cvPtrEnd);
 cv.addEventListener('wheel',e=>{ e.preventDefault(); autoFrame=false;
-  cam.ts=clamp(cam.s*Math.exp(-e.deltaY*0.0016),8,220); cam.s=cam.ts; },{passive:false});
+  cam.ts=clamp(cam.s*Math.exp(-e.deltaY*0.0016),viewMinZoom(),220); cam.s=cam.ts; },{passive:false});
 function hitNode(cx,cy){ const [wx,wy]=toWorldXY(cx,cy); let best=null,bd=1e9;
   for(const n of gnodes){ const d=Math.hypot(n.x-wx,n.y-wy); if(d<bd){bd=d;best=n;} }
   return bd<(G.r+1)*0.7? best:null; }
@@ -564,14 +582,17 @@ function polStat(){ const el=document.getElementById('polstat'); if(!el)return;
   if(E>EDGE_DRAW_MAX) html += '<div style="margin-top:5px;font-size:11px;line-height:1.35;color:#e8b366;opacity:.92">'+E.toLocaleString()+' edges — too many to draw; hover / tap a diamond to see its incident edges</div>';
   el.innerHTML = html;
   el.style.display='block'; }
+function treeTooBigMsg(){ return 'tree view disabled — too many decomposition paths to unfold (over '+TREE_NODE_MAX.toLocaleString()+' branches)'; }
 function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getElementById('vizbtns'); c.innerHTML='';
-  const mk=(label,fn,id)=>{ const b=document.createElement('button'); b.textContent=label; b.onclick=fn; if(id)b.id=id; c.appendChild(b); };
+  const mk=(label,fn,id)=>{ const b=document.createElement('button'); b.textContent=label; b.onclick=fn; if(id)b.id=id; c.appendChild(b); return b; };
+  const toTreeBtn=()=>{ if(treeTooBig){ const b=mk('to tree',()=>showWarn(treeTooBigMsg())); b.style.opacity='0.4'; b.style.cursor='not-allowed'; b.title=treeTooBigMsg(); }   // disabled: click just flashes the reason
+    else mk('to tree',toTree); };
   // NB: no "to poset" button — the poset (Hasse) view is reached by hovering/tapping the "poset" word in the legend (these graphs are rarely posets, so it stays out of the toolbar)
   if(weakMode){ if(weakLayout!=='graph') mk('to graph',()=>setWeakLayout('graph'));
     if(weakLayout!=='tree') mk('to tree',()=>setWeakLayout('tree')); return; }
   if(viz==='tree') mk('to graph',()=>collapseTo('graph'));
-  else if(viz==='graph'){ mk('to tree',toTree); }
-  else { mk('to tree',toTree); mk('to graph',()=>collapseTo('graph')); } }
+  else if(viz==='graph'){ toTreeBtn(); }
+  else { toTreeBtn(); mk('to graph',()=>collapseTo('graph')); } }
 
 /*=================== compute cache: worker + IndexedDB + progress ===================*/
 const AV=(()=>{ const s=[...document.scripts].find(x=>/app\.js/.test(x.src||'')); return s?((new URL(s.src)).searchParams.get('v')||'0'):'0'; })();   // this build's ?v=… (for the worker + its model.js import)
