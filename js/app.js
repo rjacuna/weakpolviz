@@ -2,6 +2,8 @@
 let G=null, BASIS=null, tree=[], byUid={}, parentsOrder=[], gnodes=[], gpos={};
 let mode='idle', speed=1, selected=null, _rankY={};
 const EDGE_DRAW_MAX=111;   // above this many edges the graph view draws only the hovered/selected diamond's incident edges
+const TREE_NODE_MAX=2000;  // cap the decomposition-tree unfolding (a DAG has exponentially many root→leaf paths); BFS-truncate + warn past this
+let treeTruncated=false;
 let collapseT=0;
 let viz='tree', jitterOn=true, autoGraph=false, autoPoset=false, collapseTarget='graph', graphLayout='layered';
 let _hasse=null, _hasseFor=null, curVec=[1,2,2,1], expandT=0, primMode=false;
@@ -23,21 +25,17 @@ function hasseEdges(){ const N=G.vertices.length, adj={};
 function getHasse(){ if(_hasseFor===G) return _hasse; _hasse=hasseEdges(); _hasseFor=G; return _hasse; }
 
 /*=================== layout ===================*/
-function buildTree(){   // spanning tree laid out by longest-path RANK (same levels as the graph 'layered' view). A vertex the root reaches directly by a big degeneration still sits at its true rank, not depth 1.
-  tree=[]; byUid={}; let uid=0;
-  const adj={}, radj={}, indeg={}, mvOf={};
-  for(let i=0;i<G.vertices.length;i++) indeg[i]=0;
-  G.edges.forEach((e,ei)=>{ (adj[e[0]]=adj[e[0]]||[]).push(e[1]); (radj[e[1]]=radj[e[1]]||[]).push(e[0]); indeg[e[1]]++; if(G.moves) mvOf[e[0]+'>'+e[1]]=G.moves[ei]; });   // moves optional: deduced on the fly (moveFor) when a shipped/uploaded file omits them
-  const rank={}, ind=Object.assign({},indeg), q=[];
-  for(let i=0;i<G.vertices.length;i++) if(ind[i]===0){ rank[i]=0; q.push(i); }
-  while(q.length){ const u=q.shift(); for(const w of (adj[u]||[])){ rank[w]=Math.max(rank[w]||0,(rank[u]||0)+1); if(--ind[w]===0) q.push(w); } }
-  const nodeOf={}, mk=(vid,par,mv,depth,done)=>{ const n={uid:uid++,vid,depth,parent:par,kids:[],born:!!done,state:done?'done':'hidden',x:0,y:0,tx:0,ty:0,mt:done?1:0,move:mv,pile:null,_done:!!done,jit:0}; tree.push(n); byUid[n.uid]=n; nodeOf[vid]=n; return n; };
-  mk(G.root,-1,null,0,true);
-  const byRank=[]; for(let i=0;i<G.vertices.length;i++){ const rr=rank[i]; if(rr==null)continue; (byRank[rr]=byRank[rr]||[]).push(i); }
-  for(let rr=1; rr<byRank.length; rr++) for(const v of (byRank[rr]||[])){ if(v===G.root)continue;
-    let par=-1; for(const u of (radj[v]||[])) if(rank[u]===rr-1){ par=u; break; }   // hang each vertex off a rank-(r−1) predecessor ⇒ tree depth == graph level, edges span exactly one level
-    if(par<0 || nodeOf[par]==null) continue;
-    const c=mk(v, nodeOf[par].uid, mvOf[par+'>'+v], rr, false); nodeOf[par].kids.push(c.uid); }
+function buildTree(){   // FULL UNFOLDING of the degeneration DAG: every root→…→v path is its own branch, so a vertex reached k ways appears k times — the "all the ways to decompose" the tree is meant to show. BFS-bounded by TREE_NODE_MAX (a DAG unfolds to exponentially many paths).
+  tree=[]; byUid={}; treeTruncated=false; let uid=0;
+  const adj={}, mvOf={};
+  for(let i=0;i<G.vertices.length;i++) adj[i]=[];
+  G.edges.forEach((e,ei)=>{ adj[e[0]].push(e[1]); if(G.moves) mvOf[e[0]+'>'+e[1]]=G.moves[ei]; });   // moves optional: else deduced on the fly (moveFor)
+  const mk=(vid,par,depth,done,mv)=>{ const n={uid:uid++,vid,depth,parent:par,kids:[],born:!!done,state:done?'done':'hidden',x:0,y:0,tx:0,ty:0,mt:done?1:0,move:(mv==null?null:mv),pile:null,_done:!!done,jit:0}; tree.push(n); byUid[n.uid]=n; return n; };
+  const root=mk(G.root,-1,0,true,null), queue=[root];               // BFS so the shallow (most-important) decompositions are complete before the cap bites
+  while(queue.length){ const node=queue.shift();
+    for(const w of adj[node.vid]){
+      if(tree.length>=TREE_NODE_MAX){ treeTruncated=true; queue.length=0; break; }
+      const c=mk(w, node.uid, node.depth+1, false, G.moves? mvOf[node.vid+'>'+w] : null); node.kids.push(c.uid); queue.push(c); } }
   layoutTree();
   parentsOrder=tree.filter(n=>n.kids.length>0).sort((a,b)=>a.depth-b.depth||a.tx-b.tx).map(n=>n.uid); }
 function layoutTree(){ let leafX=0; const dW=(G.r+2)*0.62*0.42*2, XS=Math.max(3.2,dW*1.12), YS=Math.max(3.8,dW*1.18);   // step ≥ diamond width so unrotated diamonds never overlap
@@ -94,6 +92,7 @@ function run(hvec){ autoFrame=true; curVec=hvec; _hasseFor=null;
   try{ G=cachedComputeGraph(hvec); }catch(e){ showErr('compute failed: '+e); return; }
   BASIS=G.basis; selected=null; hideWarn();
   buildTree(); buildGraph();
+  if(treeTruncated) showWarn('decomposition tree truncated to '+tree.length.toLocaleString()+' branches (its full unfolding is far larger)');
   revealOrder=[]; for(const puid of parentsOrder){ const p=byUid[puid];
     for(const kuid of p.kids) revealOrder.push({parentUid:puid, child:byUid[kuid]}); }
   mode='grow'; viz='tree'; done=0; revealT=0; curReveal=-1; renderVizButtons();
