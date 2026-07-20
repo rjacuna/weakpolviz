@@ -57,6 +57,7 @@ function weakForce(){ const r=WG.r, REST=(r+2)*MW*1.25, REP=4*(REST/3.6)*(REST/3
 function wActiveIsPoset(){ return WG? (weakCirc? WG.isPosetC : WG.isPoset) : false; }   // circ-aware (R_k^o may be a poset even if R_k isn't)
 function wActiveHasse(){ return WG? (weakCirc? WG.hasseC : WG.hasse) : []; }
 function setWeakLayout(l){ if(l==='poset' && WG && !wActiveIsPoset()){ showWarn('Not a poset'); scare(); return; }
+  if(l==='tree' && treeTooBig){ showWarn(treeTooBigMsg()); scare(); return; }   // the weak tree unfolds the pol DAG — disabled when that unfolding is too big (same as the pol tree)
   weakLayout=l; renderVizButtons(); autoFrame=true;   // renderVizButtons -> updateChrome keeps the toolbar in sync
   if(l==='tree'){ viz='tree'; playing=false; updatePlayIcon(); finishTree(); tree.forEach(n=>{n.bt=0;n.expl=0;}); weakHoverPileUid=-1; frameTree(); }
   else { buildWN(); frameWeak(); } }
@@ -133,8 +134,9 @@ function drawWeakMain(){ if(!WG){ return; } const U=cam.s*0.42, r=WG.r, t=easeIO
   for(const nd of WN){ if((nd.expl||0)>=0.995) continue; drawWeakNode(nd,U,t); } }
 function stepWeak(dt){ weakT += (weakTgt-weakT)*0.16; weakHoverT += ((hoverWN>=0?1:0)-weakHoverT)*0.2;   // smooth hover focus
   for(let i=0;i<WN.length;i++){ const tgt=(weakCirc && !WG.kept[i])?1:0; WN[i].expl=(WN[i].expl||0)+(tgt-(WN[i].expl||0))*0.16; }
-  if(weakClosing && weakT<0.02){ weakClosing=false; autoFrame=true;   // un-toggling weak returns to the tree view
-    viz='tree'; renderVizButtons(); finishTree(); frameTree(); }
+  if(weakClosing && weakT<0.02){ weakClosing=false; autoFrame=true;   // un-toggling weak returns to the pol side (tree, or graph when the pol tree is disabled)
+    if(treeTooBig){ viz='graph'; mode='idle'; renderVizButtons(); frameGraph(); }
+    else { viz='tree'; renderVizButtons(); finishTree(); frameTree(); } }
   else if(!weakClosing && WG){
     if(weakLayout==='graph'){ if(graphLayout==='force') weakForce();          // graph view obeys the chosen graph layout
       else { const T=graphTargetsW(); for(let i=0;i<WN.length;i++){ if(WN[i].pin)continue; WN[i].x=lerp(WN[i].x,T[i].x,0.14); WN[i].y=lerp(WN[i].y,T[i].y,0.14); WN[i].vx=WN[i].vy=0; } } }
@@ -152,7 +154,7 @@ function openWeak(){ WG=computeWeak(curVec,weakK); if(!WG)return; buildWN();
   weakMode=true; weakClosing=false; weakTgt=1; autoFrame=true;
   primMode=false; document.getElementById('primbtn').classList.remove('active');   // weak takes over; the prim button blows away
   document.getElementById('weakbtn').classList.add('active');
-  setWeakLayout('tree'); updateWeakStat(); }   // weak opens on the tree view (hover to animate); graph/poset via the buttons; k/∘ appear left of it
+  setWeakLayout(treeTooBig?'graph':'tree'); updateWeakStat(); }   // weak opens on the tree view (hover to animate) unless the pol unfolding is too big, then graph; graph/poset via the buttons; k/∘ appear left of it
 function closeWeak(){ const wasTree=(weakLayout==='tree'); weakMode=false;
   abMode=null; syncAB();                                                          // drop the ambient-poset overlay when leaving weak
   if(wasTree){ weakClosing=false; frameTree(); } else { weakClosing=true; weakTgt=0; }
@@ -160,6 +162,7 @@ function closeWeak(){ const wasTree=(weakLayout==='tree'); weakMode=false;
   document.getElementById('weakbtn').classList.remove('active'); document.getElementById('weakstat').style.display='none'; }
 function refreshWeak(){ if(!weakMode)return; WG=computeWeak(curVec,weakK); if(!WG)return; buildWN();
   if(weakLayout==='poset' && !wActiveIsPoset()) weakLayout='graph';   // a non-poset can't stay in poset layout
+  if(weakLayout==='tree' && treeTooBig) weakLayout='graph';   // the pol unfolding this weak tree rides on is too big to draw
   renderVizButtons(); autoFrame=true; updateWeakStat(); }
 function populateWeakK(){ const sel=document.getElementById('weakk'); if(!sel)return;
   const r=(curVec&&curVec.length>1)? curVec.length-1 : 3;

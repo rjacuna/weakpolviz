@@ -589,7 +589,8 @@ function renderVizButtons(){ updateHint(); updateChrome(); const c=document.getE
     else mk('to tree',toTree); };
   // NB: no "to poset" button — the poset (Hasse) view is reached by hovering/tapping the "poset" word in the legend (these graphs are rarely posets, so it stays out of the toolbar)
   if(weakMode){ if(weakLayout!=='graph') mk('to graph',()=>setWeakLayout('graph'));
-    if(weakLayout!=='tree') mk('to tree',()=>setWeakLayout('tree')); return; }
+    if(weakLayout!=='tree'){ if(treeTooBig){ const b=mk('to tree',()=>showWarn(treeTooBigMsg())); b.style.opacity='0.4'; b.style.cursor='not-allowed'; b.title=treeTooBigMsg(); }   // weak tree rides the pol unfolding — disabled when it's too big
+      else mk('to tree',()=>setWeakLayout('tree')); } return; }
   if(viz==='tree') mk('to graph',()=>collapseTo('graph'));
   else if(viz==='graph'){ toTreeBtn(); }
   else { toTreeBtn(); mk('to graph',()=>collapseTo('graph')); } }
